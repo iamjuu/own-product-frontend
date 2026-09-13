@@ -21,6 +21,9 @@ import { MarketplaceSettings } from './pages/master_admin/settings/MarketplaceSe
 // Operations Admin Components
 import { AdminLayout } from './components/layout/AdminLayout';
 import { AdminDashboard } from './pages/admin/dashboard/Dashboard';
+import { AdminShopsList } from './pages/admin/shops/AdminShopsList';
+import { CategoriesList } from './pages/admin/categories/CategoriesList';
+import { BrandsList } from './pages/admin/brands/BrandsList';
 import { ShieldAlert } from 'lucide-react';
 
 const AdminRouter = () => {
@@ -105,6 +108,12 @@ const AdminRouter = () => {
       switch (currentRoute) {
         case 'dashboard':
           return <AdminDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+        case 'shops':
+          return <AdminShopsList key={refreshKey} />;
+        case 'categories':
+          return <CategoriesList key={refreshKey} />;
+        case 'brands':
+          return <BrandsList key={refreshKey} />;
         case 'orders':
         case 'orders-pending':
           return <OrdersList key={refreshKey} defaultTab="pending" />;

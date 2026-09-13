@@ -2,6 +2,9 @@ import React from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
+  Store,
+  Layers,
+  Tag,
   Users,
   History,
   Bell,
@@ -48,6 +51,45 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
           >
             <LayoutDashboard className="w-4 h-4 shrink-0" />
             <span>Dashboard</span>
+          </button>
+
+          {/* Shops */}
+          <button
+            onClick={() => onRouteChange('shops')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('shops')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span>Shops</span>
+          </button>
+
+          {/* Categories */}
+          <button
+            onClick={() => onRouteChange('categories')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('categories')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Layers className="w-4 h-4 shrink-0" />
+            <span>Categories</span>
+          </button>
+
+          {/* Brands */}
+          <button
+            onClick={() => onRouteChange('brands')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('brands')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Tag className="w-4 h-4 shrink-0" />
+            <span>Brands</span>
           </button>
 
           {/* Orders */}

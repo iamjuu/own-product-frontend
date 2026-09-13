@@ -5,6 +5,8 @@ import {
   Users,
   Bike,
   Store,
+  Layers,
+  Tag,
   AlertTriangle,
   History,
   Bell,
@@ -156,7 +158,73 @@ export const AdminDashboard = ({ onNavigate }) => {
       </div>
 
       {/* 3. Operational Quick Action Navigation Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Shops Card */}
+        <div
+          onClick={() => onNavigate && onNavigate('shops')}
+          className="theme-card p-5 cursor-pointer hover:border-[#6339f4]/40 hover:shadow-lg transition-all group space-y-3"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Store className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-[#181829] group-hover:text-[#6339f4]">
+              Shops & Catalog
+            </h3>
+            <p className="text-[11px] text-[#8a87a6] mt-0.5">
+              Add shops, auto-creds & manage product catalogs
+            </p>
+          </div>
+          <div className="flex items-center text-[11px] font-bold text-[#6339f4] pt-1">
+            <span>Manage Shops</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+
+        {/* Categories Card */}
+        <div
+          onClick={() => onNavigate && onNavigate('categories')}
+          className="theme-card p-5 cursor-pointer hover:border-[#6339f4]/40 hover:shadow-lg transition-all group space-y-3"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-[#6339f4]/10 text-[#6339f4] flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-[#181829] group-hover:text-[#6339f4]">
+              Category Catalog
+            </h3>
+            <p className="text-[11px] text-[#8a87a6] mt-0.5">
+              Manage product taxonomies & category tags
+            </p>
+          </div>
+          <div className="flex items-center text-[11px] font-bold text-[#6339f4] pt-1">
+            <span>Manage Categories</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+
+        {/* Brands Card */}
+        <div
+          onClick={() => onNavigate && onNavigate('brands')}
+          className="theme-card p-5 cursor-pointer hover:border-[#6339f4]/40 hover:shadow-lg transition-all group space-y-3"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Tag className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-[#181829] group-hover:text-[#6339f4]">
+              Brands Directory
+            </h3>
+            <p className="text-[11px] text-[#8a87a6] mt-0.5">
+              Create brands linked to specific categories
+            </p>
+          </div>
+          <div className="flex items-center text-[11px] font-bold text-[#6339f4] pt-1">
+            <span>Manage Brands</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+
         {/* Orders Card */}
         <div
           onClick={() => onNavigate && onNavigate('orders')}
