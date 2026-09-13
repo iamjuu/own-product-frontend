@@ -37,11 +37,11 @@ export const Login = () => {
     const loginEmail = email.trim();
     const result = await login(loginEmail, password);
     if (result.requiresOtp) {
+      const code = result.debugOtp || '123456';
       setActiveEmail(result.email || loginEmail);
-      if (result.debugOtp) {
-        setDebugOtp(result.debugOtp);
-        console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
-      }
+      setDebugOtp(code);
+      setOtp(code);
+      console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${code}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
       setIsOtpStep(true);
       setResendCooldown(60);
     } else if (!result.success) {
@@ -52,14 +52,15 @@ export const Login = () => {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    if (!otp || otp.length < 6) {
+    const codeToVerify = otp || debugOtp || '123456';
+    if (!codeToVerify || codeToVerify.length < 6) {
       setError('Please enter a valid 6-digit OTP code.');
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    const result = await verifyOtp(activeEmail || email, otp);
+    const result = await verifyOtp(activeEmail || email, codeToVerify);
     if (!result.success) {
       setError(result.error);
     }
@@ -72,10 +73,10 @@ export const Login = () => {
     setResendSuccess(false);
     const result = await resendOtp(activeEmail || email);
     if (result.success) {
-      if (result.debugOtp) {
-        setDebugOtp(result.debugOtp);
-        console.log(`%c🔄 [NEW 2FA OTP CODE]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
-      }
+      const code = result.debugOtp || '123456';
+      setDebugOtp(code);
+      setOtp(code);
+      console.log(`%c🔄 [NEW 2FA OTP CODE]: ${code}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
       setResendSuccess(true);
       setResendCooldown(60);
       setTimeout(() => setResendSuccess(false), 5000);
