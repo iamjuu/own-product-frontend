@@ -28,8 +28,11 @@ import { Pagination } from '../../../components/common/Pagination';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '../../../context/AuthContext';
 
 export const AdminsList = () => {
+  const { user } = useAuth();
+  const apiPrefix = user?.role === 'ADMIN' ? '/admin' : '/master-admin';
   const [admins, setAdmins] = useState([]);
   const [summary, setSummary] = useState({ totalAdmins: 0, masterAdmins: 0, opsAdmins: 0 });
   const [search, setSearch] = useState('');
@@ -65,7 +68,7 @@ export const AdminsList = () => {
   const fetchAdmins = async (page = currentPage, query = search, role = roleFilter) => {
     setIsLoading(true);
     try {
-      const response = await ApiClient.get('/master-admin/admins', {
+      const response = await ApiClient.get(`${apiPrefix}/admins`, {
         search: query,
         role: role,
         page: page,
@@ -146,7 +149,7 @@ export const AdminsList = () => {
 
     setIsUpdatingPassword(true);
     try {
-      const response = await ApiClient.patch(`/master-admin/admins/${passwordModalAdmin._id}/password`, {
+      const response = await ApiClient.patch(`${apiPrefix}/admins/${passwordModalAdmin._id}/password`, {
         password: newPassword,
       });
       if (response.success) {
@@ -177,7 +180,7 @@ export const AdminsList = () => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const response = await ApiClient.post('/master-admin/admins', formData);
+      const response = await ApiClient.post(`${apiPrefix}/admins`, formData);
       if (response.success) {
         setNotification({
           type: 'success',
@@ -209,7 +212,7 @@ export const AdminsList = () => {
   const handleToggleStatus = async (admin) => {
     const newStatus = !admin.isActive;
     try {
-      const response = await ApiClient.patch(`/master-admin/admins/${admin._id}/status`, {
+      const response = await ApiClient.patch(`${apiPrefix}/admins/${admin._id}/status`, {
         isActive: newStatus,
       });
       if (response.success) {
@@ -238,7 +241,7 @@ export const AdminsList = () => {
       return;
     }
     try {
-      const response = await ApiClient.delete(`/master-admin/admins/${admin._id}`);
+      const response = await ApiClient.delete(`${apiPrefix}/admins/${admin._id}`);
       if (response.success) {
         setNotification({
           type: 'success',
