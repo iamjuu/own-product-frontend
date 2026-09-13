@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, html, body, input, button, select, textarea {
+  font-family: 'Manrope', sans-serif !important;
+}
+
+:root {
+  --primary: #6339f4;
+  --primary-hover: #5327ec;
+  --primary-light: #ece8ff;
+  --bg-app: #f0f2fb;
+  --card-bg: #ffffff;
+  --text-dark: #181829;
+  --text-muted: #8a87a6;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f0f2fb;
+  color: #181829;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Theme Panels & Cards matching the design image */
+.theme-card {
+  background: #ffffff;
+  border-radius: 1.5rem;
+  box-shadow: 0 10px 30px -5px rgba(99, 57, 244, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(235, 235, 250, 0.8);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 35px -10px rgba(99, 57, 244, 0.12), 0 8px 10px -4px rgba(99, 57, 244, 0.04);
+}
+
+.theme-sidebar {
+  background: linear-gradient(180deg, #6736f8 0%, #6030ea 50%, #5725e4 100%);
+  border-radius: 2rem;
+  box-shadow: 0 20px 40px -10px rgba(96, 48, 234, 0.35);
+}
+
+.theme-sidebar-card {
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(10px);
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Hide scrollbar across all browsers */
+::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  background: transparent;
+}
+
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Donut circle animations */
+@keyframes ring-progress {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 25;
+  }
+}
