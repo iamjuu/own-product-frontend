@@ -8,6 +8,7 @@ export const Login = () => {
   const { appearance } = usePlatform();
   const [email, setEmail] = useState('masteradmin@marketplace.com');
   const [password, setPassword] = useState('MasterAdmin123!');
+  const [activeEmail, setActiveEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -32,8 +33,10 @@ export const Login = () => {
     setIsLoading(true);
     setError(null);
 
-    const result = await login(email, password);
+    const loginEmail = email.trim();
+    const result = await login(loginEmail, password);
     if (result.requiresOtp) {
+      setActiveEmail(result.email || loginEmail);
       setIsOtpStep(true);
       setResendCooldown(60);
     } else if (!result.success) {
@@ -51,7 +54,7 @@ export const Login = () => {
 
     setIsLoading(true);
     setError(null);
-    const result = await verifyOtp(email, otp);
+    const result = await verifyOtp(activeEmail || email, otp);
     if (!result.success) {
       setError(result.error);
     }
@@ -62,7 +65,7 @@ export const Login = () => {
     if (resendCooldown > 0) return;
     setError(null);
     setResendSuccess(false);
-    const result = await resendOtp(email);
+    const result = await resendOtp(activeEmail || email);
     if (result.success) {
       setResendSuccess(true);
       setResendCooldown(60);

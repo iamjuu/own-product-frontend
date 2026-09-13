@@ -5,7 +5,7 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     const token = ApiClient.getToken();
     if (!token) {
-      setIsLoading(false);
+      setIsInitialLoading(false);
       return;
     }
 
@@ -32,12 +32,11 @@ export const AuthProvider = ({ children }) => {
       ApiClient.setToken(null);
       setUser(null);
     } finally {
-      setIsLoading(false);
+      setIsInitialLoading(false);
     }
   };
 
   const login = async (email, password) => {
-    setIsLoading(true);
     setError(null);
     try {
       const response = await ApiClient.post('/auth/login', { email, password });
@@ -58,13 +57,10 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       setError(err.message || 'Authentication failed');
       return { success: false, error: err.message || 'Authentication failed' };
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const verifyOtp = async (email, otp) => {
-    setIsLoading(true);
     setError(null);
     try {
       const response = await ApiClient.post('/auth/verify-otp', { email, otp });
@@ -77,8 +73,6 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       setError(err.message || 'OTP verification failed');
       return { success: false, error: err.message || 'OTP verification failed' };
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -113,7 +107,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
-        isLoading,
+        isLoading: isInitialLoading,
         error,
         isAuthenticated: !!user,
         isMasterAdmin,
