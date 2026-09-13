@@ -18,6 +18,8 @@ import {
   Copy,
   Check,
   Key,
+  KeyRound,
+  Sparkles,
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 import { StatusBadge } from '../../../components/common/MetricCard';
@@ -44,7 +46,13 @@ export const AdminsList = () => {
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [copiedId, setCopiedId] = useState(null);
 
-  // Form State
+  // Change Password Modal State
+  const [passwordModalAdmin, setPasswordModalAdmin] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  // Create Form State
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -102,10 +110,67 @@ export const AdminsList = () => {
   };
 
   const handleCopyPassword = (admin) => {
-    const pwd = admin.displayPassword || '••••••••';
+    const pwd = admin.displayPassword || (admin.role === 'MASTER_ADMIN' ? 'MasterAdmin123!' : 'Admin123!');
     navigator.clipboard.writeText(pwd);
     setCopiedId(admin._id);
     setTimeout(() => setCopiedId(null), 2500);
+  };
+
+  const handleOpenPasswordModal = (admin) => {
+    setPasswordModalAdmin(admin);
+    setNewPassword('');
+    setShowChangePassword(false);
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+    let generated = '';
+    for (let i = 0; i < 10; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(generated);
+    setShowChangePassword(true);
+  };
+
+  const handleSubmitChangePassword = async (e) => {
+    e.preventDefault();
+    if (!passwordModalAdmin) return;
+    if (newPassword.length < 6) {
+      setNotification({
+        type: 'error',
+        title: 'Validation Error',
+        description: 'Password must be at least 6 characters long.',
+      });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const response = await ApiClient.patch(`/master-admin/admins/${passwordModalAdmin._id}/password`, {
+        password: newPassword,
+      });
+      if (response.success) {
+        setAdmins((prev) =>
+          prev.map((a) => (a._id === passwordModalAdmin._id ? { ...a, displayPassword: newPassword } : a))
+        );
+        setNotification({
+          type: 'success',
+          title: 'Password Updated Successfully',
+          description: `Password for ${passwordModalAdmin.name} (${passwordModalAdmin.email}) has been changed to "${newPassword}".`,
+        });
+        setPasswordModalAdmin(null);
+        setNewPassword('');
+      }
+    } catch (err) {
+      setNotification({
+        type: 'error',
+        title: 'Failed to update password',
+        description: err.message || 'An error occurred while changing password.',
+      });
+    } finally {
+      setIsUpdatingPassword(false);
+      setTimeout(() => setNotification(null), 6000);
+    }
   };
 
   const handleCreateAdmin = async (e) => {
@@ -203,7 +268,7 @@ export const AdminsList = () => {
               Platform Administrators & Access Governance
             </h2>
             <p className="text-xs text-[#8a87a6] mt-0.5">
-              Create and oversee administrative accounts, view access credentials & passwords, and manage account statuses.
+              Create and oversee administrative accounts, view & change access credentials, and manage account statuses.
             </p>
           </div>
 
@@ -361,13 +426,13 @@ export const AdminsList = () => {
                       </span>
                     </div>
 
-                    {/* Password Row with Eye and Copy */}
-                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                    {/* Password Row with Eye, Copy, and Change Password Button */}
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200/60">
                       <span className="text-[#8a87a6] flex items-center space-x-1">
                         <Key className="w-3.5 h-3.5 text-[#6339f4]" />
                         <span>Password:</span>
                       </span>
-                      <div className="flex items-center space-x-1.5 font-mono">
+                      <div className="flex items-center space-x-1 font-mono">
                         <span className="bg-white px-2 py-0.5 rounded-md border border-slate-200 text-[#181829] font-bold text-[11px]">
                           {isPasswordVisible ? displayPwd : '••••••••'}
                         </span>
@@ -391,10 +456,19 @@ export const AdminsList = () => {
                             <Copy className="w-3.5 h-3.5" />
                           )}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPasswordModal(admin)}
+                          title="Change Password"
+                          className="px-1.5 py-0.5 rounded-md bg-[#ece8ff] hover:bg-[#6339f4] text-[#6339f4] hover:text-white font-sans text-[10px] font-bold transition-all flex items-center space-x-1"
+                        >
+                          <KeyRound className="w-3 h-3" />
+                          <span>Change</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-[#8a87a6] pt-1 border-t border-slate-200/60">
+                    <div className="flex items-center justify-between text-[11px] text-[#8a87a6] pt-1.5 border-t border-slate-200/60">
                       <span className="flex items-center space-x-1">
                         <Calendar className="w-3.5 h-3.5" />
                         <span>Joined:</span>
@@ -424,15 +498,25 @@ export const AdminsList = () => {
                     </Label>
                   </div>
 
-                  {!isMaster && (
+                  <div className="flex items-center space-x-1">
                     <button
-                      onClick={() => handleDeleteAdmin(admin)}
-                      title="Delete admin"
-                      className="p-1.5 rounded-xl text-[#8a87a6] hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      onClick={() => handleOpenPasswordModal(admin)}
+                      title="Change Password"
+                      className="p-1.5 rounded-xl text-[#8a87a6] hover:text-[#6339f4] hover:bg-[#ece8ff]/50 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <KeyRound className="w-4 h-4" />
                     </button>
-                  )}
+
+                    {!isMaster && (
+                      <button
+                        onClick={() => handleDeleteAdmin(admin)}
+                        title="Delete admin"
+                        className="p-1.5 rounded-xl text-[#8a87a6] hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -542,15 +626,25 @@ export const AdminsList = () => {
                         </div>
                       </td>
                       <td className="p-4 text-right">
-                        {!isMaster && (
+                        <div className="inline-flex items-center space-x-2">
                           <button
-                            onClick={() => handleDeleteAdmin(admin)}
-                            title="Delete Admin"
-                            className="p-1.5 rounded-xl text-[#8a87a6] hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            onClick={() => handleOpenPasswordModal(admin)}
+                            title="Change Password"
+                            className="p-1.5 rounded-xl text-[#8a87a6] hover:text-[#6339f4] hover:bg-[#ece8ff]/50 transition-colors"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <KeyRound className="w-4 h-4" />
                           </button>
-                        )}
+
+                          {!isMaster && (
+                            <button
+                              onClick={() => handleDeleteAdmin(admin)}
+                              title="Delete Admin"
+                              className="p-1.5 rounded-xl text-[#8a87a6] hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -702,6 +796,89 @@ export const AdminsList = () => {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* 6. Change Password Modal */}
+      <Modal
+        isOpen={!!passwordModalAdmin}
+        onClose={() => setPasswordModalAdmin(null)}
+        title="Change Administrator Password"
+      >
+        {passwordModalAdmin && (
+          <form onSubmit={handleSubmitChangePassword} className="space-y-4 text-xs">
+            {/* Target Admin Card */}
+            <div className="p-3.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-[#ece8ff] text-[#6339f4] flex items-center justify-center font-bold">
+                  {passwordModalAdmin.name?.charAt(0)?.toUpperCase()}
+                </div>
+                <div>
+                  <div className="font-semibold text-[#181829]">{passwordModalAdmin.name}</div>
+                  <div className="text-[11px] text-[#8a87a6]">{passwordModalAdmin.email}</div>
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#ece8ff] text-[#6339f4]">
+                {passwordModalAdmin.role === 'MASTER_ADMIN' ? 'Master Admin' : 'Operations Admin'}
+              </span>
+            </div>
+
+            {/* New Password Input */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[#8a87a6] font-medium uppercase text-[10px]">
+                  New Password * (min 6 characters)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  className="text-[11px] text-[#6339f4] hover:text-[#5327ec] font-bold flex items-center space-x-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Generate Strong</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <Lock className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+                <input
+                  type={showChangePassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] font-mono font-bold focus:outline-none focus:border-[#6339f4]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(!showChangePassword)}
+                  className="absolute right-3.5 top-3 text-[#8a87a6] hover:text-[#181829]"
+                >
+                  {showChangePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setPasswordModalAdmin(null)}
+                className="px-4 py-2 rounded-2xl border border-slate-200/80 text-xs font-medium text-[#8a87a6] hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isUpdatingPassword || newPassword.length < 6}
+                className="px-5 py-2 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-xs font-medium text-white shadow-md shadow-[#6339f4]/25 transition-all disabled:opacity-50 flex items-center space-x-1.5"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>{isUpdatingPassword ? 'Updating...' : 'Update Password'}</span>
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
