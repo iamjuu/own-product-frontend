@@ -6,15 +6,16 @@ import { usePlatform } from '../../context/PlatformContext';
 export const Login = () => {
   const { login, verifyOtp, resendOtp, error: authError } = useAuth();
   const { appearance } = usePlatform();
-  const [email, setEmail] = useState('masteradmin@marketplace.com');
-  const [password, setPassword] = useState('MasterAdmin123!');
-  const [activeEmail, setActiveEmail] = useState('');
+  const savedPendingEmail = typeof window !== 'undefined' ? sessionStorage.getItem('pending_otp_email') || '' : '';
+  const [email, setEmail] = useState('a@gmail.com');
+  const [password, setPassword] = useState('123');
+  const [activeEmail, setActiveEmail] = useState(savedPendingEmail);
   const [debugOtp, setDebugOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // OTP Step State
-  const [isOtpStep, setIsOtpStep] = useState(false);
+  // OTP Step State (persists across page reloads if user is midway through OTP)
+  const [isOtpStep, setIsOtpStep] = useState(!!savedPendingEmail);
   const [otp, setOtp] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendSuccess, setResendSuccess] = useState(false);
@@ -37,9 +38,11 @@ export const Login = () => {
     const loginEmail = email.trim();
     const result = await login(loginEmail, password);
     if (result.requiresOtp) {
-      setActiveEmail(result.email || loginEmail);
+      const target = result.email || loginEmail;
+      setActiveEmail(target);
+      sessionStorage.setItem('pending_otp_email', target);
       console.log('==============================================');
-      console.log(`🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]:`, result.debugOtp);
+      console.log(`🔐 [2FA OTP VERIFICATION CODE for ${target}]:`, result.debugOtp);
       console.log('==============================================');
       setOtp('');
       setIsOtpStep(true);
@@ -60,7 +63,9 @@ export const Login = () => {
     setIsLoading(true);
     setError(null);
     const result = await verifyOtp(activeEmail || email, otp);
-    if (!result.success) {
+    if (result.success) {
+      sessionStorage.removeItem('pending_otp_email');
+    } else {
       setError(result.error);
     }
     setIsLoading(false);
@@ -83,7 +88,15 @@ export const Login = () => {
     }
   };
 
+  const handleBackToLogin = () => {
+    sessionStorage.removeItem('pending_otp_email');
+    setIsOtpStep(false);
+    setError(null);
+    setOtp('');
+  };
+
   const handleFillMasterAdmin = () => {
+    sessionStorage.removeItem('pending_otp_email');
     setEmail('masteradmin@marketplace.com');
     setPassword('MasterAdmin123!');
     setIsOtpStep(false);
@@ -91,8 +104,9 @@ export const Login = () => {
   };
 
   const handleFillAdmin = () => {
-    setEmail('admin@marketplace.com');
-    setPassword('Admin123!');
+    sessionStorage.removeItem('pending_otp_email');
+    setEmail('a@gmail.com');
+    setPassword('123');
     setIsOtpStep(false);
     setError(null);
   };
@@ -214,7 +228,7 @@ export const Login = () => {
               <div className="flex items-center justify-between pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsOtpStep(false)}
+                  onClick={handleBackToLogin}
                   className="inline-flex items-center space-x-1 text-xs text-[#8a87a6] hover:text-[#181829] font-bold"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
