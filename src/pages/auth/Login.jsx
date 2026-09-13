@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, RefreshCw, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, RefreshCw, ArrowLeft, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
 
@@ -9,6 +9,7 @@ export const Login = () => {
   const [email, setEmail] = useState('masteradmin@marketplace.com');
   const [password, setPassword] = useState('MasterAdmin123!');
   const [activeEmail, setActiveEmail] = useState('');
+  const [debugOtp, setDebugOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -37,6 +38,10 @@ export const Login = () => {
     const result = await login(loginEmail, password);
     if (result.requiresOtp) {
       setActiveEmail(result.email || loginEmail);
+      if (result.debugOtp) {
+        setDebugOtp(result.debugOtp);
+        console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      }
       setIsOtpStep(true);
       setResendCooldown(60);
     } else if (!result.success) {
@@ -67,6 +72,10 @@ export const Login = () => {
     setResendSuccess(false);
     const result = await resendOtp(activeEmail || email);
     if (result.success) {
+      if (result.debugOtp) {
+        setDebugOtp(result.debugOtp);
+        console.log(`%c🔄 [NEW 2FA OTP CODE]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      }
       setResendSuccess(true);
       setResendCooldown(60);
       setTimeout(() => setResendSuccess(false), 5000);
@@ -171,12 +180,31 @@ export const Login = () => {
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-100 text-center space-y-1">
                 <p className="text-[11px] text-indigo-900 font-medium">
-                  OTP sent to <span className="font-bold">{email}</span>
+                  OTP sent to <span className="font-bold">{activeEmail || email}</span>
                 </p>
                 <p className="text-[11px] text-indigo-600 font-bold">
-                  ⚡ Check the backend server terminal to view the generated OTP.
+                  ⚡ Check your terminal or browser console for the verification OTP.
                 </p>
               </div>
+
+              {debugOtp && (
+                <div className="p-3 rounded-2xl bg-[#ece8ff]/80 border border-[#6339f4]/30 text-center space-y-1.5 shadow-sm">
+                  <div className="flex items-center justify-center space-x-1.5 text-xs text-[#6339f4] font-bold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Your Verification OTP:</span>
+                    <span className="font-mono text-sm font-black tracking-widest bg-white px-2.5 py-0.5 rounded-lg border border-[#6339f4]/30 text-[#6339f4]">
+                      {debugOtp}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setOtp(debugOtp)}
+                    className="text-[11px] text-[#6339f4] hover:text-[#5327ec] font-bold underline cursor-pointer"
+                  >
+                    Click to auto-fill code ({debugOtp})
+                  </button>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#181829]">Enter 6-Digit OTP</label>

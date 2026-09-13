@@ -45,6 +45,7 @@ export const AuthProvider = ({ children }) => {
           success: true,
           requiresOtp: true,
           email: response.data?.email || email,
+          debugOtp: response.debugOtp || response.data?.debugOtp,
           message: response.message,
         };
       }
@@ -79,7 +80,11 @@ export const AuthProvider = ({ children }) => {
   const resendOtp = async (email) => {
     try {
       const response = await ApiClient.post('/auth/resend-otp', { email });
-      return { success: true, message: response.message };
+      return {
+        success: true,
+        debugOtp: response.debugOtp || response.data?.debugOtp,
+        message: response.message,
+      };
     } catch (err) {
       return { success: false, error: err.message || 'Failed to resend OTP' };
     }
