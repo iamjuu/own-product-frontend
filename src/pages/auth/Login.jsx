@@ -37,11 +37,11 @@ export const Login = () => {
     const loginEmail = email.trim();
     const result = await login(loginEmail, password);
     if (result.requiresOtp) {
-      const code = result.debugOtp || '123456';
       setActiveEmail(result.email || loginEmail);
-      setDebugOtp(code);
-      setOtp(code);
-      console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${code}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      if (result.debugOtp) {
+        console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      }
+      setOtp('');
       setIsOtpStep(true);
       setResendCooldown(60);
     } else if (!result.success) {
@@ -52,15 +52,14 @@ export const Login = () => {
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    const codeToVerify = otp || debugOtp || '123456';
-    if (!codeToVerify || codeToVerify.length < 6) {
+    if (!otp || otp.length < 6) {
       setError('Please enter a valid 6-digit OTP code.');
       return;
     }
 
     setIsLoading(true);
     setError(null);
-    const result = await verifyOtp(activeEmail || email, codeToVerify);
+    const result = await verifyOtp(activeEmail || email, otp);
     if (!result.success) {
       setError(result.error);
     }
@@ -73,10 +72,9 @@ export const Login = () => {
     setResendSuccess(false);
     const result = await resendOtp(activeEmail || email);
     if (result.success) {
-      const code = result.debugOtp || '123456';
-      setDebugOtp(code);
-      setOtp(code);
-      console.log(`%c🔄 [NEW 2FA OTP CODE]: ${code}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      if (result.debugOtp) {
+        console.log(`%c🔄 [NEW 2FA OTP CODE]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
+      }
       setResendSuccess(true);
       setResendCooldown(60);
       setTimeout(() => setResendSuccess(false), 5000);
@@ -130,7 +128,7 @@ export const Login = () => {
 
           {resendSuccess && (
             <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-bold text-center">
-              A new OTP code has been generated! (Check terminal console)
+              A new OTP code has been generated! (Check console)
             </div>
           )}
 
@@ -184,28 +182,9 @@ export const Login = () => {
                   OTP sent to <span className="font-bold">{activeEmail || email}</span>
                 </p>
                 <p className="text-[11px] text-indigo-600 font-bold">
-                  ⚡ Check your terminal or browser console for the verification OTP.
+                  ⚡ Check your browser console or server terminal for the OTP code.
                 </p>
               </div>
-
-              {debugOtp && (
-                <div className="p-3 rounded-2xl bg-[#ece8ff]/80 border border-[#6339f4]/30 text-center space-y-1.5 shadow-sm">
-                  <div className="flex items-center justify-center space-x-1.5 text-xs text-[#6339f4] font-bold">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Your Verification OTP:</span>
-                    <span className="font-mono text-sm font-black tracking-widest bg-white px-2.5 py-0.5 rounded-lg border border-[#6339f4]/30 text-[#6339f4]">
-                      {debugOtp}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setOtp(debugOtp)}
-                    className="text-[11px] text-[#6339f4] hover:text-[#5327ec] font-bold underline cursor-pointer"
-                  >
-                    Click to auto-fill code ({debugOtp})
-                  </button>
-                </div>
-              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-[#181829]">Enter 6-Digit OTP</label>
@@ -217,7 +196,7 @@ export const Login = () => {
                     maxLength={6}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="123456"
+                    placeholder="Enter 6-digit OTP"
                     className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-[#181829] text-center tracking-widest text-lg font-black placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
                   />
                 </div>
