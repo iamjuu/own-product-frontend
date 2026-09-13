@@ -138,11 +138,11 @@ export const AdminsList = () => {
   const handleSubmitChangePassword = async (e) => {
     e.preventDefault();
     if (!passwordModalAdmin) return;
-    if (newPassword.length < 6) {
+    if (!newPassword) {
       setNotification({
         type: 'error',
         title: 'Validation Error',
-        description: 'Password must be at least 6 characters long.',
+        description: 'Password is required.',
       });
       return;
     }
@@ -716,14 +716,13 @@ export const AdminsList = () => {
           {/* Password with Eye Show/Hide Toggle */}
           <div className="space-y-1">
             <label className="text-[#8a87a6] font-medium uppercase text-[10px]">
-              Initial Password * (min 6 characters)
+              Initial Password *
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
               <input
                 type={showModalPassword ? 'text' : 'password'}
                 required
-                minLength={6}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 placeholder="Enter admin password"
@@ -829,7 +828,7 @@ export const AdminsList = () => {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[#8a87a6] font-medium uppercase text-[10px]">
-                  New Password * (min 6 characters)
+                  New Password *
                 </label>
                 <button
                   type="button"
@@ -837,7 +836,7 @@ export const AdminsList = () => {
                   className="text-[11px] text-[#6339f4] hover:text-[#5327ec] font-bold flex items-center space-x-1"
                 >
                   <Sparkles className="w-3 h-3" />
-                  <span>Generate Strong</span>
+                  <span>Generate Random</span>
                 </button>
               </div>
 
@@ -846,7 +845,6 @@ export const AdminsList = () => {
                 <input
                   type={showChangePassword ? 'text' : 'password'}
                   required
-                  minLength={6}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
@@ -873,7 +871,7 @@ export const AdminsList = () => {
               </button>
               <button
                 type="submit"
-                disabled={isUpdatingPassword || newPassword.length < 6}
+                disabled={isUpdatingPassword || !newPassword}
                 className="px-5 py-2 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-xs font-medium text-white shadow-md shadow-[#6339f4]/25 transition-all disabled:opacity-50 flex items-center space-x-1.5"
               >
                 <KeyRound className="w-3.5 h-3.5" />
