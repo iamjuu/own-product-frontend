@@ -7,6 +7,8 @@ export const Login = () => {
   const { login, verifyOtp, resendOtp, error: authError } = useAuth();
   const { appearance } = usePlatform();
   const savedPendingEmail = typeof window !== 'undefined' ? sessionStorage.getItem('pending_otp_email') || '' : '';
+  // const [email, setEmail] = useState('masteradmin@marketplace.com');
+  // const [password, setPassword] = useState('MasterAdmin123!');
   const [email, setEmail] = useState('a@gmail.com');
   const [password, setPassword] = useState('123');
   const [activeEmail, setActiveEmail] = useState(savedPendingEmail);
