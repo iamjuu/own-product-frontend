@@ -38,9 +38,9 @@ export const Login = () => {
     const result = await login(loginEmail, password);
     if (result.requiresOtp) {
       setActiveEmail(result.email || loginEmail);
-      if (result.debugOtp) {
-        console.log(`%c🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
-      }
+      console.log('==============================================');
+      console.log(`🔐 [2FA OTP VERIFICATION CODE for ${result.email || loginEmail}]:`, result.debugOtp);
+      console.log('==============================================');
       setOtp('');
       setIsOtpStep(true);
       setResendCooldown(60);
@@ -72,9 +72,9 @@ export const Login = () => {
     setResendSuccess(false);
     const result = await resendOtp(activeEmail || email);
     if (result.success) {
-      if (result.debugOtp) {
-        console.log(`%c🔄 [NEW 2FA OTP CODE]: ${result.debugOtp}`, 'color: #6339f4; font-size: 14px; font-weight: bold;');
-      }
+      console.log('==============================================');
+      console.log(`🔄 [NEW 2FA OTP CODE for ${activeEmail || email}]:`, result.debugOtp);
+      console.log('==============================================');
       setResendSuccess(true);
       setResendCooldown(60);
       setTimeout(() => setResendSuccess(false), 5000);
