@@ -54,3 +54,49 @@ export const EmptyState = ({ title, message, icon: Icon }) => {
     </div>
   );
 };
+
+export const ConfirmDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title = 'Are you sure?',
+  message = 'This action cannot be undone.',
+  confirmText = 'Confirm',
+  cancelText = 'Cancel',
+  isDestructive = false,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-white border border-slate-200/80 rounded-3xl shadow-2xl p-6 space-y-4">
+        <h3 className="text-sm font-black text-[#181829] tracking-tight">{title}</h3>
+        <p className="text-xs text-[#8a87a6] leading-relaxed">{message}</p>
+        <div className="flex items-center justify-end space-x-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-2xl text-xs font-bold text-[#8a87a6] hover:bg-slate-100 transition-all"
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
+              isDestructive
+                ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                : 'bg-[#6339f4] hover:bg-[#5327ec] shadow-[#6339f4]/25'
+            }`}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
