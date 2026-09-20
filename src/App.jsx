@@ -24,6 +24,13 @@ import { AdminDashboard } from './pages/admin/dashboard/Dashboard';
 import { AdminShopsList } from './pages/admin/shops/AdminShopsList';
 import { CategoriesList } from './pages/admin/categories/CategoriesList';
 import { BrandsList } from './pages/admin/brands/BrandsList';
+
+// Shop / Restaurant Owner Components
+import { ShopOwnerLayout } from './components/layout/ShopOwnerLayout';
+import { ShopOwnerDashboard } from './pages/shop_owner/dashboard/Dashboard';
+import { ShopOwnerOrders } from './pages/shop_owner/orders/ShopOwnerOrders';
+import { ShopOwnerMenu } from './pages/shop_owner/menu/ShopOwnerMenu';
+
 import { ShieldAlert } from 'lucide-react';
 
 const AdminRouter = () => {
@@ -121,6 +128,11 @@ const AdminRouter = () => {
           return <OrdersList key={refreshKey} defaultTab="in-progress" />;
         case 'orders-completed':
           return <OrdersList key={refreshKey} defaultTab="completed" />;
+        case 'delivery':
+        case 'delivery-pending':
+          return <DeliveryPartnersList key={refreshKey} defaultTab="pending" />;
+        case 'delivery-verified':
+          return <DeliveryPartnersList key={refreshKey} defaultTab="verified" />;
         case 'customers':
           return <CustomersList key={refreshKey} />;
         case 'activity-logs':
@@ -142,6 +154,32 @@ const AdminRouter = () => {
       >
         {renderAdminContent()}
       </AdminLayout>
+    );
+  }
+
+  // 3. RESTAURANT / SHOP OWNER PORTAL
+  if (user?.role === 'SHOP_OWNER') {
+    const renderShopOwnerContent = () => {
+      switch (currentRoute) {
+        case 'dashboard':
+          return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+        case 'orders':
+          return <ShopOwnerOrders key={refreshKey} onNavigate={setCurrentRoute} />;
+        case 'menu':
+          return <ShopOwnerMenu key={refreshKey} onNavigate={setCurrentRoute} />;
+        default:
+          return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+      }
+    };
+
+    return (
+      <ShopOwnerLayout
+        currentRoute={currentRoute}
+        onRouteChange={setCurrentRoute}
+        onRefresh={handleRefresh}
+      >
+        {renderShopOwnerContent()}
+      </ShopOwnerLayout>
     );
   }
 

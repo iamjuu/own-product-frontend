@@ -12,6 +12,7 @@ import {
   Shield,
   Clock,
   MoreVertical,
+  Bike,
 } from 'lucide-react';
 import { usePlatform } from '../../context/PlatformContext';
 
@@ -20,6 +21,7 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
 
   const isActive = (route) => {
     if (route === 'orders') return currentRoute.startsWith('orders');
+    if (route === 'delivery') return currentRoute.startsWith('delivery');
     return currentRoute === route;
   };
 
@@ -103,6 +105,19 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
           >
             <ShoppingBag className="w-4 h-4 shrink-0" />
             <span>Orders</span>
+          </button>
+
+          {/* Delivery Partners (Rider Fleet & Verification) */}
+          <button
+            onClick={() => onRouteChange('delivery')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('delivery')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Bike className="w-4 h-4 shrink-0" />
+            <span>Delivery Partners</span>
           </button>
 
           {/* Customers */}

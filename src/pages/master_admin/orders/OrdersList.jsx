@@ -9,13 +9,15 @@ import {
   Store,
   User,
   Eye,
-  ShieldAlert
+  ShieldAlert,
+  Bike
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 import { useAuth } from '../../../context/AuthContext';
 import { StatusBadge } from '../../../components/common/MetricCard';
 import { Modal, EmptyState } from '../../../components/common/Modal';
 import { Pagination } from '../../../components/common/Pagination';
+import { LiveDeliveryTrackingModal } from '../../../components/tracking/LiveDeliveryTrackingModal';
 
 export const OrdersList = ({ defaultTab = 'pending' }) => {
   const { user } = useAuth();
@@ -27,6 +29,7 @@ export const OrdersList = ({ defaultTab = 'pending' }) => {
   const [pagination, setPagination] = useState({ total: 0, pages: 1, limit: 7 });
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [trackingOrder, setTrackingOrder] = useState(null);
 
   useEffect(() => {
     setTab(defaultTab);
@@ -237,13 +240,24 @@ export const OrdersList = ({ defaultTab = 'pending' }) => {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setSelectedOrder(order)}
-                    className="px-3.5 py-2 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-xs font-bold text-white flex items-center space-x-1.5 shadow-md shadow-[#6339f4]/20 transition-all"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Inspect</span>
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setTrackingOrder(order)}
+                      title="Swiggy-Style Live Delivery Tracking"
+                      className="px-3 py-2 rounded-2xl bg-gradient-to-r from-[#fc8019] to-[#e66c0d] hover:from-[#e66c0d] hover:to-[#cc5b00] text-xs font-bold text-white flex items-center space-x-1.5 shadow-md shadow-[#fc8019]/25 transition-all"
+                    >
+                      <Bike className="w-3.5 h-3.5" />
+                      <span>Live Radar</span>
+                    </button>
+
+                    <button
+                      onClick={() => setSelectedOrder(order)}
+                      className="px-3.5 py-2 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-xs font-bold text-white flex items-center space-x-1.5 shadow-md shadow-[#6339f4]/20 transition-all"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Inspect</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -341,6 +355,18 @@ export const OrdersList = ({ defaultTab = 'pending' }) => {
               </div>
             </div>
 
+            <button
+              onClick={() => {
+                const ord = selectedOrder;
+                setSelectedOrder(null);
+                setTrackingOrder(ord);
+              }}
+              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#fc8019] via-[#6339f4] to-[#fc8019] hover:opacity-95 text-white text-xs font-black tracking-wide shadow-lg shadow-[#fc8019]/20 flex items-center justify-center space-x-2 transition-all"
+            >
+              <Bike className="w-4 h-4 animate-bounce" />
+              <span>Track Live Delivery (Swiggy Radar View)</span>
+            </button>
+
             <div className="p-3 rounded-2xl bg-[#ece8ff] flex items-center space-x-2 text-[11px] text-[#6339f4]">
               <ShieldAlert className="w-4 h-4 text-[#6339f4] shrink-0" />
               <span className="font-semibold">
@@ -350,6 +376,14 @@ export const OrdersList = ({ defaultTab = 'pending' }) => {
           </div>
         )}
       </Modal>
+
+      {/* Swiggy-Style Live Delivery Tracking Modal */}
+      <LiveDeliveryTrackingModal
+        isOpen={!!trackingOrder}
+        order={trackingOrder}
+        onClose={() => setTrackingOrder(null)}
+        onStatusUpdated={() => fetchOrders(tab, search, currentPage)}
+      />
     </div>
   );
 };

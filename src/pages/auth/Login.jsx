@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, RefreshCw, ArrowLeft, Sparkles } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, KeyRound, RefreshCw, ArrowLeft, Sparkles, Bike } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { usePlatform } from '../../context/PlatformContext';
+import { DeliveryPartnerApplyModal } from '../../components/delivery/DeliveryPartnerApplyModal';
 
 export const Login = () => {
   const { login, verifyOtp, resendOtp, error: authError } = useAuth();
@@ -15,6 +16,7 @@ export const Login = () => {
   const [debugOtp, setDebugOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showApplyModal, setShowApplyModal] = useState(false);
 
   // OTP Step State (persists across page reloads if user is midway through OTP)
   const [isOtpStep, setIsOtpStep] = useState(!!savedPendingEmail);
@@ -109,6 +111,14 @@ export const Login = () => {
     sessionStorage.removeItem('pending_otp_email');
     setEmail('a@gmail.com');
     setPassword('123');
+    setIsOtpStep(false);
+    setError(null);
+  };
+
+  const handleFillShopOwner = () => {
+    sessionStorage.removeItem('pending_otp_email');
+    setEmail('abc@marketplace.com');
+    setPassword('ShopOwner123!');
     setIsOtpStep(false);
     setError(null);
   };
@@ -268,14 +278,40 @@ export const Login = () => {
               >
                 Operations Admin (2FA)
               </button>
+              <button
+                type="button"
+                onClick={handleFillShopOwner}
+                className="text-[11px] px-3 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold transition-all"
+              >
+                Restaurant Owner
+              </button>
             </div>
+          </div>
+
+          {/* Join Fleet / Apply as Delivery Partner */}
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowApplyModal(true)}
+              className="w-full py-2.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/20 to-emerald-500/10 hover:from-emerald-500/20 hover:to-emerald-500/30 text-emerald-700 border border-emerald-300/80 text-xs font-black flex items-center justify-center space-x-2 transition-all shadow-sm"
+            >
+              <Bike className="w-4 h-4 text-emerald-600" />
+              <span>Want to Earn with Us? Apply as Delivery Partner</span>
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            </button>
           </div>
         </div>
 
         <p className="text-center text-[11px] text-[#8a87a6] mt-6 font-bold">
-          Protected Platform Console • Supporting <code className="text-[#6339f4] font-black">MASTER_ADMIN</code> & <code className="text-purple-600 font-black">ADMIN</code>
+          Protected Platform Console • Supporting <code className="text-[#6339f4] font-black">MASTER_ADMIN</code>, <code className="text-purple-600 font-black">ADMIN</code> & <code className="text-amber-600 font-black">SHOP_OWNER</code>
         </p>
       </div>
+
+      {/* Delivery Partner Application Wizard Modal */}
+      <DeliveryPartnerApplyModal
+        isOpen={showApplyModal}
+        onClose={() => setShowApplyModal(false)}
+      />
     </div>
   );
 };
