@@ -90,6 +90,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const register = async (name, email, password) => {
+    setError(null);
+    try {
+      const response = await ApiClient.post('/auth/register', { name, email, password });
+      if (response.requiresOtp) {
+        return {
+          success: true,
+          requiresOtp: true,
+          email: response.data?.email || email,
+          debugOtp: response.debugOtp || response.data?.debugOtp,
+          message: response.message,
+        };
+      }
+      return response;
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+      return { success: false, error: err.message || 'Registration failed' };
+    }
+  };
+
   const logout = async () => {
     try {
       await ApiClient.post('/auth/logout');
@@ -106,7 +126,11 @@ export const AuthProvider = ({ children }) => {
     return user.permissions?.includes(permission);
   };
 
-  const isMasterAdmin = user?.role === 'MASTER_ADMIN';
+  const isMasterAdmin = user?.role === 'MASTER_ADMIN' || user?.isUser === 'master';
+  const isUser = user?.isUser === 'user' || user?.role === 'CUSTOMER';
+  const isDeliveryBoy = user?.isUser === 'delivery_boy' || user?.role === 'DELIVERY_PARTNER';
+  const isAdmin = user?.isUser === 'admin' || user?.role === 'ADMIN';
+  const isShopOwner = user?.isUser === 'shop_owner' || user?.role === 'SHOP_OWNER';
 
   return (
     <AuthContext.Provider
@@ -116,7 +140,12 @@ export const AuthProvider = ({ children }) => {
         error,
         isAuthenticated: !!user,
         isMasterAdmin,
+        isUser,
+        isDeliveryBoy,
+        isAdmin,
+        isShopOwner,
         login,
+        register,
         verifyOtp,
         resendOtp,
         logout,

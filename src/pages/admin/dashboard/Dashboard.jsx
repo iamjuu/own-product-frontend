@@ -15,6 +15,7 @@ import {
   Clock,
   CheckCircle2,
   RefreshCw,
+  Scale,
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 
@@ -221,6 +222,28 @@ export const AdminDashboard = ({ onNavigate }) => {
           </div>
           <div className="flex items-center text-[11px] font-bold text-[#6339f4] pt-1">
             <span>Manage Brands</span>
+            <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
+
+        {/* Units Governance Card */}
+        <div
+          onClick={() => onNavigate && onNavigate('units')}
+          className="theme-card p-5 cursor-pointer hover:border-[#6339f4]/40 hover:shadow-lg transition-all group space-y-3"
+        >
+          <div className="w-10 h-10 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold text-[#181829] group-hover:text-[#6339f4]">
+              Unit Type Governance
+            </h3>
+            <p className="text-[11px] text-[#8a87a6] mt-0.5">
+              Admin-controlled measurement units (kg, g, litre, ml, piece)
+            </p>
+          </div>
+          <div className="flex items-center text-[11px] font-bold text-[#6339f4] pt-1">
+            <span>Manage Units</span>
             <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
           </div>
         </div>

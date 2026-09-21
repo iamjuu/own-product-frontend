@@ -58,10 +58,13 @@ const PRESET_DISH_IMAGES = [
 
 const INITIAL_FORM_STATE = {
   name: '',
+  productId: '',
   categoryId: '',
+  subcategoryId: '',
+  unitId: '',
+  unit: '',
   price: '',
   mrp: '',
-  unit: '1 serving',
   stockQuantity: '100',
   inStock: true,
   image: '',
@@ -86,13 +89,37 @@ export const ShopOwnerMenu = () => {
   const [formError, setFormError] = useState('');
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
 
+  // Dynamic Catalog Listings (Multi-Vendor) States
+  const [shopProducts, setShopProducts] = useState([]);
+  const [catalogList, setCatalogList] = useState([]);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+  const [selectedCatalogProduct, setSelectedCatalogProduct] = useState(null);
+  const [selectedProductVariants, setSelectedProductVariants] = useState([]);
+  const [selectedVariantId, setSelectedVariantId] = useState('');
+  const [catalogForm, setCatalogForm] = useState({ sellingPrice: '', stock: '50', isAvailable: true });
+  const [catalogError, setCatalogError] = useState('');
+  const [catalogSuccess, setCatalogSuccess] = useState('');
+  const [isSubmittingCatalog, setIsSubmittingCatalog] = useState(false);
+  const [editingShopProduct, setEditingShopProduct] = useState(null);
+  const [listingToDelete, setListingToDelete] = useState(null);
+  const [catalogSearch, setCatalogSearch] = useState('');
+
+  // Dependent Dropdown States
+  const [subcategories, setSubcategories] = useState([]);
+  const [allowedUnits, setAllowedUnits] = useState([]);
+  const [masterProducts, setMasterProducts] = useState([]);
+  const [isSubcategoriesLoading, setIsSubcategoriesLoading] = useState(false);
+  const [isUnitsLoading, setIsUnitsLoading] = useState(false);
+
   // Fetch Menu Items & Categories
   const fetchMenuData = async () => {
     setLoading(true);
     try {
-      const [menuRes, catRes] = await Promise.all([
+      const [menuRes, catRes, shopProdsRes, catalogRes] = await Promise.all([
         get('/shop-owner/menu'),
         get('/shop-owner/categories').catch(() => ({ data: [] })),
+        get('/shop-products').catch(() => ({ data: [] })),
+        get('/products').catch(() => ({ data: [] })),
       ]);
 
       if (menuRes?.success) {
@@ -101,6 +128,12 @@ export const ShopOwnerMenu = () => {
       }
       if (catRes?.success) {
         setCategories(catRes.data || []);
+      }
+      if (shopProdsRes?.success) {
+        setShopProducts(Array.isArray(shopProdsRes.data) ? shopProdsRes.data : shopProdsRes.data?.listings || []);
+      }
+      if (catalogRes?.success) {
+        setCatalogList(Array.isArray(catalogRes.data) ? catalogRes.data : catalogRes.data?.products || []);
       }
     } catch (err) {
       console.error('Failed to load menu data:', err);
@@ -113,38 +146,131 @@ export const ShopOwnerMenu = () => {
     fetchMenuData();
   }, []);
 
-  // Filtered Items
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      // Stock Status
-      if (statusFilter === 'IN_STOCK' && !item.inStock) return false;
-      if (statusFilter === 'OUT_OF_STOCK' && item.inStock) return false;
-
-      // Category Filter
-      if (categoryFilter !== 'ALL' && item.categoryId !== categoryFilter) return false;
-
-      // Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesName = item.name?.toLowerCase().includes(q);
-        const matchesCat = item.categoryName?.toLowerCase().includes(q);
-        const matchesDesc = item.description?.toLowerCase().includes(q);
-        if (!matchesName && !matchesCat && !matchesDesc) return false;
+  // Cascade Loaders
+  const loadSubcategories = async (catId) => {
+    if (!catId) {
+      setSubcategories([]);
+      setAllowedUnits([]);
+      setMasterProducts([]);
+      return;
+    }
+    setIsSubcategoriesLoading(true);
+    try {
+      const res = await get(`/shop-owner/subcategories?categoryId=${catId}`);
+      if (res?.success) {
+        setSubcategories(res.data || []);
       }
+    } catch (err) {
+      console.error('Failed to load subcategories:', err);
+    } finally {
+      setIsSubcategoriesLoading(false);
+    }
+  };
 
-      return true;
-    });
-  }, [items, statusFilter, categoryFilter, searchQuery]);
+  const loadUnitsAndProducts = async (subcatId) => {
+    if (!subcatId) {
+      setAllowedUnits([]);
+      setMasterProducts([]);
+      return;
+    }
+    setIsUnitsLoading(true);
+    try {
+      const [unitsRes, prodsRes] = await Promise.all([
+        get(`/shop-owner/subcategories/${subcatId}/units`),
+        get(`/shop-owner/master-products?subcategoryId=${subcatId}`),
+      ]);
+      if (unitsRes?.success) {
+        const units = unitsRes.data || [];
+        setAllowedUnits(units);
+        if (units.length > 0 && !formData.unitId) {
+          setFormData((prev) => ({
+            ...prev,
+            unitId: units[0]._id,
+            unit: units[0].symbol,
+          }));
+        }
+      }
+      if (prodsRes?.success) {
+        setMasterProducts(prodsRes.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load units and master products:', err);
+    } finally {
+      setIsUnitsLoading(false);
+    }
+  };
+
+  const handleCategoryChange = (catId) => {
+    setFormData((prev) => ({
+      ...prev,
+      categoryId: catId,
+      subcategoryId: '',
+      productId: '',
+      unitId: '',
+      unit: '',
+    }));
+    setAllowedUnits([]);
+    setMasterProducts([]);
+    loadSubcategories(catId);
+  };
+
+  const handleSubcategoryChange = (subcatId) => {
+    setFormData((prev) => ({
+      ...prev,
+      subcategoryId: subcatId,
+      productId: '',
+      unitId: '',
+      unit: '',
+    }));
+    loadUnitsAndProducts(subcatId);
+  };
+
+  const handleUnitChange = (unitId) => {
+    const found = allowedUnits.find((u) => u._id === unitId);
+    setFormData((prev) => ({
+      ...prev,
+      unitId,
+      unit: found?.symbol || '',
+    }));
+  };
+
+  const handleMasterProductSelect = (prodId) => {
+    if (!prodId) {
+      setFormData((prev) => ({ ...prev, productId: '' }));
+      return;
+    }
+    const master = masterProducts.find((p) => p._id === prodId);
+    if (master) {
+      const matchingUnit = allowedUnits.find(
+        (u) => u._id === (master.unitId?._id || master.unitId) || u.symbol === master.unit
+      );
+      setFormData((prev) => ({
+        ...prev,
+        productId: prodId,
+        name: master.name,
+        image: master.image || prev.image,
+        description: master.description || prev.description,
+        price: master.price !== undefined ? String(master.price) : prev.price,
+        mrp: master.mrp !== undefined ? String(master.mrp) : prev.mrp,
+        unitId: matchingUnit ? matchingUnit._id : prev.unitId,
+        unit: matchingUnit ? matchingUnit.symbol : prev.unit,
+      }));
+    }
+  };
 
   // Open Add Modal
   const handleOpenAdd = () => {
+    const defaultCatId = categories[0]?._id || '';
     setFormData({
       ...INITIAL_FORM_STATE,
-      categoryId: categories[0]?._id || '',
+      categoryId: defaultCatId,
       image: PRESET_DISH_IMAGES[0].url,
     });
     setFormError('');
     setIsAddModalOpen(true);
+    if (defaultCatId) {
+      loadSubcategories(defaultCatId);
+    }
   };
 
   // Open Edit Modal
@@ -152,10 +278,13 @@ export const ShopOwnerMenu = () => {
     setItemToEdit(item);
     setFormData({
       name: item.name || '',
+      productId: item.masterProductId || '',
       categoryId: item.categoryId || categories[0]?._id || '',
+      subcategoryId: item.subcategoryId || '',
+      unitId: item.unitId || '',
+      unit: item.unit || '',
       price: item.price !== undefined ? String(item.price) : '',
       mrp: item.mrp !== undefined ? String(item.mrp) : '',
-      unit: item.unit || '1 serving',
       stockQuantity: item.stockQuantity !== undefined ? String(item.stockQuantity) : '100',
       inStock: item.inStock !== undefined ? item.inStock : true,
       image: item.image || '',
@@ -163,6 +292,12 @@ export const ShopOwnerMenu = () => {
     });
     setFormError('');
     setIsEditModalOpen(true);
+    if (item.categoryId) {
+      loadSubcategories(item.categoryId);
+    }
+    if (item.subcategoryId) {
+      loadUnitsAndProducts(item.subcategoryId);
+    }
   };
 
   // Submit Add Dish
@@ -170,6 +305,18 @@ export const ShopOwnerMenu = () => {
     e.preventDefault();
     if (!formData.name.trim()) {
       setFormError('Dish / Item name is required.');
+      return;
+    }
+    if (subcategories.length > 0 && !formData.subcategoryId) {
+      setFormError('Please select a Subcategory.');
+      return;
+    }
+    if (formData.subcategoryId && allowedUnits.length === 0) {
+      setFormError('No units configured for this subcategory. Please contact Admin.');
+      return;
+    }
+    if (allowedUnits.length > 0 && !formData.unitId) {
+      setFormError('Please select an authorized unit.');
       return;
     }
     if (!formData.price || isNaN(formData.price) || Number(formData.price) < 0) {
@@ -208,6 +355,14 @@ export const ShopOwnerMenu = () => {
     e.preventDefault();
     if (!formData.name.trim()) {
       setFormError('Dish / Item name is required.');
+      return;
+    }
+    if (subcategories.length > 0 && !formData.subcategoryId) {
+      setFormError('Please select a Subcategory.');
+      return;
+    }
+    if (allowedUnits.length > 0 && !formData.unitId) {
+      setFormError('Please select an authorized unit.');
       return;
     }
     if (!formData.price || isNaN(formData.price) || Number(formData.price) < 0) {
@@ -278,6 +433,120 @@ export const ShopOwnerMenu = () => {
     }
   };
 
+  // ==========================================
+  // DYNAMIC CATALOG LISTING HANDLERS
+  // ==========================================
+  const handleOpenCatalogModal = () => {
+    setSelectedCatalogProduct(null);
+    setSelectedProductVariants([]);
+    setSelectedVariantId('');
+    setCatalogForm({ sellingPrice: '', stock: '50', isAvailable: true });
+    setCatalogError('');
+    setCatalogSuccess('');
+    setIsCatalogModalOpen(true);
+  };
+
+  const handleSelectCatalogProduct = async (product) => {
+    setSelectedCatalogProduct(product);
+    setSelectedVariantId('');
+    setCatalogError('');
+    setCatalogSuccess('');
+
+    try {
+      const res = await get(`/products/${product._id}/variants`);
+      if (res?.success) {
+        setSelectedProductVariants(res.data || []);
+        if (res.data?.length > 0) {
+          setSelectedVariantId(res.data[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load product variants:', err);
+    }
+  };
+
+  const handleSubmitCatalogListing = async (e) => {
+    e.preventDefault();
+    if (!selectedCatalogProduct) {
+      setCatalogError('Please select a product from the catalog.');
+      return;
+    }
+    if (!selectedVariantId) {
+      setCatalogError('Please select a product variant (unit + quantity).');
+      return;
+    }
+    if (!catalogForm.sellingPrice || Number(catalogForm.sellingPrice) < 0) {
+      setCatalogError('Please enter a valid selling price.');
+      return;
+    }
+    if (catalogForm.stock === '' || Number(catalogForm.stock) < 0) {
+      setCatalogError('Please enter a valid stock quantity.');
+      return;
+    }
+
+    setIsSubmittingCatalog(true);
+    setCatalogError('');
+    setCatalogSuccess('');
+
+    try {
+      const res = await post('/shop-products', {
+        shopId: shop?._id,
+        productVariantId: selectedVariantId,
+        sellingPrice: Number(catalogForm.sellingPrice),
+        stock: Number(catalogForm.stock),
+        isAvailable: catalogForm.isAvailable,
+      });
+
+      if (res?.success) {
+        setCatalogSuccess('Product variant published to your store catalog!');
+        setTimeout(() => {
+          setIsCatalogModalOpen(false);
+          fetchMenuData();
+        }, 1000);
+      } else {
+        setCatalogError(res?.message || 'Failed to list product.');
+      }
+    } catch (err) {
+      setCatalogError(err.message || 'Error publishing catalog product.');
+    } finally {
+      setIsSubmittingCatalog(false);
+    }
+  };
+
+  const handleToggleShopProductStock = async (listing) => {
+    try {
+      const updatedAvail = !listing.isAvailable;
+      setShopProducts((prev) =>
+        prev.map((it) => (it._id === listing._id ? { ...it, isAvailable: updatedAvail } : it))
+      );
+
+      const res = await patch(`/shop-products/${listing._id}`, {
+        isAvailable: updatedAvail,
+        stock: updatedAvail && listing.stock === 0 ? 10 : listing.stock,
+      });
+
+      if (!res?.success) {
+        fetchMenuData();
+      }
+    } catch (err) {
+      console.error('Failed to toggle shop product status:', err);
+      fetchMenuData();
+    }
+  };
+
+  const handleConfirmDeleteShopProduct = async () => {
+    if (!listingToDelete) return;
+    try {
+      const res = await del(`/shop-products/${listingToDelete._id}`);
+      if (res?.success) {
+        setShopProducts((prev) => prev.filter((it) => it._id !== listingToDelete._id));
+        setListingToDelete(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete shop product listing:', err);
+    }
+  };
+
   // Summary counts
   const totalCount = items.length;
   const inStockCount = items.filter((i) => i.inStock).length;
@@ -306,7 +575,7 @@ export const ShopOwnerMenu = () => {
           </div>
         </div>
 
-        <div className="flex items-center space-x-3 self-start md:self-auto">
+        <div className="flex items-center space-x-3 self-start md:self-auto flex-wrap gap-y-2">
           <button
             onClick={fetchMenuData}
             className="p-2.5 rounded-xl bg-[#f0f2fb] hover:bg-slate-200 text-slate-700 transition-all"
@@ -315,14 +584,158 @@ export const ShopOwnerMenu = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#6339f4]' : ''}`} />
           </button>
           <button
+            onClick={handleOpenCatalogModal}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6030ea] to-[#8050f5] hover:opacity-95 text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-[#6030ea]/20 transition-all"
+          >
+            <Package className="w-4 h-4" />
+            <span>+ Select from Admin Catalog</span>
+          </button>
+          <button
             id="add-menu-item-btn"
             onClick={handleOpenAdd}
-            className="px-4 py-2.5 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-white text-xs font-bold flex items-center space-x-2 shadow-lg shadow-[#6339f4]/20 transition-all"
+            className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold flex items-center space-x-2 shadow-sm transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Add Menu Item</span>
+            <span>Add Custom Dish</span>
           </button>
         </div>
+      </div>
+
+      {/* ==========================================
+          DYNAMIC CATALOG LISTINGS (MULTI-VENDOR MARKETPLACE)
+          ========================================== */}
+      <div className="theme-card p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-[#6030ea]"></span>
+              <h2 className="text-sm font-bold text-[#181829] uppercase tracking-wider">
+                Store Catalog Offerings (Multi-Vendor Listings)
+              </h2>
+              <span className="px-2 py-0.5 rounded-full bg-purple-50 text-[#6030ea] font-extrabold text-[10px] border border-purple-200">
+                {shopProducts.length} Listed
+              </span>
+            </div>
+            <p className="text-xs text-[#8a87a6] mt-0.5">
+              Admin master products linked to your store with independent selling prices and stock.
+            </p>
+          </div>
+
+          <button
+            onClick={handleOpenCatalogModal}
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#6030ea] border border-purple-200 text-xs font-bold transition-all self-start sm:self-auto"
+          >
+            <Package className="w-4 h-4" />
+            <span>+ List Product Variant</span>
+          </button>
+        </div>
+
+        {shopProducts.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-[#f8f9fe] border border-dashed border-slate-200 space-y-2">
+            <Package className="w-8 h-8 text-[#6030ea] mx-auto opacity-70" />
+            <h4 className="text-xs font-bold text-[#181829]">No catalog products listed yet</h4>
+            <p className="text-[11px] text-[#8a87a6] max-w-sm mx-auto">
+              Select products from the admin catalog (e.g. Eastern Turmeric Powder, Farm Fresh Chicken, Sardines), choose your variants, and set your own price and stock.
+            </p>
+            <button
+              onClick={handleOpenCatalogModal}
+              className="mt-2 px-3.5 py-1.5 rounded-xl bg-[#6030ea] text-white text-xs font-bold shadow-sm"
+            >
+              Browse Admin Catalog
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {shopProducts.map((listing) => {
+              const variant = listing.productVariantId;
+              const product = variant?.productId;
+              const unit = variant?.unitId;
+
+              return (
+                <div
+                  key={listing._id}
+                  className="rounded-2xl border border-slate-200/80 p-4 bg-white shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#6030ea] font-extrabold text-[10px] border border-purple-200">
+                        {product?.brandId?.name || 'Catalog Item'}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          listing.isAvailable && listing.stock > 0
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-600 border border-rose-200'
+                        }`}
+                      >
+                        {listing.isAvailable && listing.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-3 pt-1">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center">
+                        {product?.image ? (
+                          <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package className="w-5 h-5 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-bold text-gray-900 truncate" title={product?.name}>
+                          {product?.name || 'Product'}
+                        </h4>
+                        <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-slate-100 text-gray-700 font-extrabold text-[10px]">
+                          {variant?.quantity} {unit?.symbol}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pricing & Stock Details */}
+                  <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#8a87a6] font-medium">Selling Price:</span>
+                      <span className="font-extrabold text-gray-900 text-sm">₹{listing.sellingPrice}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[#8a87a6] font-medium">Available Stock:</span>
+                      <span className="font-bold text-gray-800">{listing.stock} units</span>
+                    </div>
+                  </div>
+
+                  {/* Card Footer Toggle & Delete */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <label className="flex items-center space-x-2 cursor-pointer select-none">
+                      <div
+                        onClick={() => handleToggleShopProductStock(listing)}
+                        className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center px-0.5 cursor-pointer ${
+                          listing.isAvailable ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <div
+                          className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
+                            listing.isAvailable ? 'translate-x-3.5' : 'translate-x-0'
+                          }`}
+                        ></div>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500">
+                        {listing.isAvailable ? 'Active' : 'Paused'}
+                      </span>
+                    </label>
+
+                    <button
+                      onClick={() => setListingToDelete(listing)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      title="Remove listing from store"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Metrics Row */}
@@ -632,33 +1045,20 @@ export const ShopOwnerMenu = () => {
             </div>
           )}
 
-          {/* Dish Name */}
-          <div>
-            <label className="block text-xs font-bold text-[#181829] mb-1.5">
-              1. Dish / Item Name <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Special Chicken Dum Biryani, Margherita Pizza, Masala Chai..."
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
-            />
-          </div>
-
-          {/* Category & Portion Size */}
+          {/* Category & Subcategory Selection */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-[#181829] mb-1.5 flex items-center space-x-1">
                 <Layers className="w-3.5 h-3.5 text-[#6339f4]" />
-                <span>2. Category</span>
+                <span>1. Category <span className="text-rose-500">*</span></span>
               </label>
               <select
+                required
                 value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-medium focus:outline-none focus:border-[#6339f4]"
               >
+                <option value="">-- Select Category --</option>
                 {categories.map((cat) => (
                   <option key={cat._id} value={cat._id}>
                     {cat.name}
@@ -668,16 +1068,95 @@ export const ShopOwnerMenu = () => {
             </div>
 
             <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5 flex items-center space-x-1">
+                <Layers className="w-3.5 h-3.5 text-[#6339f4]" />
+                <span>2. Subcategory <span className="text-rose-500">*</span></span>
+              </label>
+              <select
+                required
+                disabled={!formData.categoryId || isSubcategoriesLoading}
+                value={formData.subcategoryId}
+                onChange={(e) => handleSubcategoryChange(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-medium focus:outline-none focus:border-[#6339f4]"
+              >
+                <option value="">
+                  {isSubcategoriesLoading ? 'Loading subcategories...' : '-- Select Subcategory --'}
+                </option>
+                {subcategories.map((sub) => (
+                  <option key={sub._id} value={sub._id}>
+                    {sub.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Master Catalog Product (Optional Quick Picker) */}
+          {formData.subcategoryId && masterProducts.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5 flex items-center space-x-1">
+                <Package className="w-3.5 h-3.5 text-[#6339f4]" />
+                <span>Select from Catalog (Autofill details)</span>
+              </label>
+              <select
+                value={formData.productId}
+                onChange={(e) => handleMasterProductSelect(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-medium focus:outline-none focus:border-[#6339f4]"
+              >
+                <option value="">-- Custom Item / Custom Name --</option>
+                {masterProducts.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} (Suggested unit: {p.unit || 'Standard'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Dish / Product Name & Admin-Governed Unit Dropdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <label className="block text-xs font-bold text-[#181829] mb-1.5">
-                3. Portion / Unit Size
+                3. Item Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
-                value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                placeholder="e.g. 1 Plate, Serves 2, 500 ml, 250g"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g. Fresh Sardine, Masala Chai..."
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5 flex items-center justify-between">
+                <span>4. Unit <span className="text-rose-500">*</span></span>
+                <span className="text-[10px] text-slate-400 font-normal">Admin Allowed Units</span>
+              </label>
+
+              {formData.subcategoryId && allowedUnits.length === 0 && !isUnitsLoading ? (
+                <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-medium leading-snug">
+                  No units configured for this subcategory. Please contact Admin.
+                </div>
+              ) : (
+                <select
+                  required
+                  disabled={!formData.subcategoryId || isUnitsLoading || allowedUnits.length === 0}
+                  value={formData.unitId}
+                  onChange={(e) => handleUnitChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-bold focus:outline-none focus:border-[#6339f4]"
+                >
+                  <option value="">
+                    {isUnitsLoading ? 'Loading allowed units...' : '-- Select Admin Authorized Unit --'}
+                  </option>
+                  {allowedUnits.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.symbol} ({u.name})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -836,27 +1315,13 @@ export const ShopOwnerMenu = () => {
             </div>
           )}
 
-          {/* Dish Name */}
-          <div>
-            <label className="block text-xs font-bold text-[#181829] mb-1.5">
-              Dish / Item Name <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
-            />
-          </div>
-
-          {/* Category & Portion Size */}
+          {/* Category & Subcategory Selection */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-[#181829] mb-1.5">Category</label>
               <select
                 value={formData.categoryId}
-                onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-medium focus:outline-none focus:border-[#6339f4]"
               >
                 {categories.map((cat) => (
@@ -868,13 +1333,57 @@ export const ShopOwnerMenu = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#181829] mb-1.5">Portion / Unit Size</label>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">Subcategory</label>
+              <select
+                value={formData.subcategoryId}
+                onChange={(e) => handleSubcategoryChange(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-medium focus:outline-none focus:border-[#6339f4]"
+              >
+                <option value="">-- Select Subcategory --</option>
+                {subcategories.map((sub) => (
+                  <option key={sub._id} value={sub._id}>
+                    {sub.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Item Name & Admin-Governed Unit Dropdown */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">
+                Item Name <span className="text-rose-500">*</span>
+              </label>
               <input
                 type="text"
-                value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">Allowed Unit</label>
+              {allowedUnits.length === 0 ? (
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-800 text-[11px]">
+                  No units configured for this subcategory.
+                </div>
+              ) : (
+                <select
+                  value={formData.unitId}
+                  onChange={(e) => handleUnitChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] font-bold focus:outline-none focus:border-[#6339f4]"
+                >
+                  <option value="">-- Select Allowed Unit --</option>
+                  {allowedUnits.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.symbol} ({u.name})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -1012,6 +1521,247 @@ export const ShopOwnerMenu = () => {
         message={`Are you sure you want to remove "${itemToDelete?.name}" from your restaurant catalog? Customers will no longer be able to view or order this item.`}
         confirmText="Yes, Delete Dish"
         cancelText="Keep Item"
+        isDestructive={true}
+      />
+
+      {/* ==========================================
+          MODAL: SELECT & LIST PRODUCT FROM ADMIN CATALOG
+          ========================================== */}
+      {isCatalogModalOpen && (
+        <Modal
+          isOpen={isCatalogModalOpen}
+          onClose={() => setIsCatalogModalOpen(false)}
+          title="Select & List Product from Master Catalog"
+          size="lg"
+        >
+          <div className="space-y-6">
+            {catalogError && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{catalogError}</span>
+              </div>
+            )}
+
+            {catalogSuccess && (
+              <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                <span>{catalogSuccess}</span>
+              </div>
+            )}
+
+            {/* Step 1: Product Selection from Catalog */}
+            {!selectedCatalogProduct ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                    Step 1: Choose Master Product
+                  </h4>
+                  <span className="text-[11px] text-gray-400">
+                    {catalogList.length} products available
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    placeholder="Search by name, category, or brand..."
+                    className="w-full pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                  {catalogList
+                    .filter((p) => {
+                      if (!catalogSearch.trim()) return true;
+                      const s = catalogSearch.toLowerCase();
+                      const name = p.name?.toLowerCase() || '';
+                      const cat = p.categoryId?.name?.toLowerCase() || '';
+                      const brand = p.brandId?.name?.toLowerCase() || '';
+                      return name.includes(s) || cat.includes(s) || brand.includes(s);
+                    })
+                    .map((prod) => (
+                      <div
+                        key={prod._id}
+                        onClick={() => handleSelectCatalogProduct(prod)}
+                        className="p-3.5 rounded-2xl border border-gray-200 hover:border-[#6030ea] hover:bg-purple-50/20 cursor-pointer transition-all flex items-center space-x-3 group"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200 flex items-center justify-center">
+                          {prod.image ? (
+                            <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Package className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-bold text-gray-900 group-hover:text-[#6030ea] transition-colors truncate">
+                            {prod.name}
+                          </h5>
+                          <span className="text-[10px] text-gray-500 block truncate">
+                            {prod.categoryId?.name} ➔ {prod.subcategoryId?.name}
+                          </span>
+                          {prod.brandId?.name && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[9px] font-bold">
+                              {prod.brandId.name}
+                            </span>
+                          )}
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#6030ea] shrink-0" />
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : (
+              /* Step 2: Select Variant & Set Price/Stock */
+              <form onSubmit={handleSubmitCatalogListing} className="space-y-5">
+                {/* Selected Product Banner */}
+                <div className="p-3.5 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-11 h-11 rounded-xl bg-white overflow-hidden shrink-0 border border-purple-200 flex items-center justify-center">
+                      {selectedCatalogProduct.image ? (
+                        <img
+                          src={selectedCatalogProduct.image}
+                          alt={selectedCatalogProduct.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Package className="w-5 h-5 text-[#6030ea]" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-purple-950">
+                        {selectedCatalogProduct.name}{' '}
+                        {selectedCatalogProduct.brandId?.name ? `(${selectedCatalogProduct.brandId.name})` : ''}
+                      </h4>
+                      <span className="text-[10px] text-purple-700 font-medium">
+                        {selectedCatalogProduct.categoryId?.name} ➔ {selectedCatalogProduct.subcategoryId?.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCatalogProduct(null);
+                      setSelectedProductVariants([]);
+                      setSelectedVariantId('');
+                    }}
+                    className="text-xs text-[#6030ea] hover:underline font-bold"
+                  >
+                    Change Product
+                  </button>
+                </div>
+
+                {/* Variant Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">
+                    Select Product Variant (Unit + Quantity) <span className="text-rose-500">*</span>
+                  </label>
+
+                  {selectedProductVariants.length === 0 ? (
+                    <div className="p-4 rounded-xl bg-amber-50 text-amber-800 text-xs">
+                      No variants exist yet for this product. Please ask Admin to configure variants for {selectedCatalogProduct.name}.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      {selectedProductVariants.map((v) => {
+                        const isSelected = selectedVariantId === v._id;
+                        return (
+                          <div
+                            key={v._id}
+                            onClick={() => setSelectedVariantId(v._id)}
+                            className={`p-3 rounded-2xl border text-center cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-[#6030ea] bg-purple-50/70 ring-2 ring-[#6030ea]/20 shadow-xs'
+                                : 'border-gray-200 hover:border-gray-300 bg-white'
+                            }`}
+                          >
+                            <span className="text-sm font-black text-gray-900 block">
+                              {v.quantity} {v.unitId?.symbol}
+                            </span>
+                            <span className="text-[10px] text-gray-400 block mt-0.5">
+                              {v.unitId?.name}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Price and Stock Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Store Selling Price (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      required
+                      value={catalogForm.sellingPrice}
+                      onChange={(e) => setCatalogForm({ ...catalogForm, sellingPrice: e.target.value })}
+                      placeholder="e.g. 85"
+                      className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea] font-extrabold text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                      Initial Available Stock <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={catalogForm.stock}
+                      onChange={(e) => setCatalogForm({ ...catalogForm, stock: e.target.value })}
+                      placeholder="e.g. 50"
+                      className="w-full px-4 py-2.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea] font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="flex items-center justify-end space-x-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsCatalogModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-gray-500 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCatalog || selectedProductVariants.length === 0}
+                    className="px-6 py-2.5 bg-gradient-to-r from-[#6030ea] to-[#8050f5] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#6030ea]/20 hover:opacity-95 disabled:opacity-50 flex items-center space-x-1.5"
+                  >
+                    {isSubmittingCatalog ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>Publish to Store Catalog</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Confirm Delete Shop Product Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(listingToDelete)}
+        onClose={() => setListingToDelete(null)}
+        onConfirm={handleConfirmDeleteShopProduct}
+        title="Remove Listing from Store?"
+        message={`Are you sure you want to remove this catalog listing from your store? Customers will no longer see this variant.`}
+        confirmText="Remove Listing"
+        cancelText="Cancel"
         isDestructive={true}
       />
     </div>

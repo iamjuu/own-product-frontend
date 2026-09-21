@@ -13,6 +13,10 @@ import {
   Clock,
   MoreVertical,
   Bike,
+  Smartphone,
+  Scale,
+  Package,
+  FolderTree,
 } from 'lucide-react';
 import { usePlatform } from '../../context/PlatformContext';
 
@@ -20,9 +24,15 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
   const { appearance } = usePlatform();
 
   const isActive = (route) => {
-    if (route === 'orders') return currentRoute.startsWith('orders');
-    if (route === 'delivery') return currentRoute.startsWith('delivery');
-    return currentRoute === route;
+    let cleanRoute = currentRoute || 'dashboard';
+    if (cleanRoute.startsWith('admin/')) {
+      cleanRoute = cleanRoute.substring('admin/'.length);
+    } else if (cleanRoute === 'admin') {
+      cleanRoute = 'dashboard';
+    }
+    if (route === 'orders') return cleanRoute.startsWith('orders');
+    if (route === 'delivery') return cleanRoute.startsWith('delivery');
+    return cleanRoute === route;
   };
 
   return (
@@ -81,6 +91,19 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
             <span>Categories</span>
           </button>
 
+          {/* Subcategories */}
+          <button
+            onClick={() => onRouteChange('subcategories')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('subcategories')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <FolderTree className="w-4 h-4 shrink-0" />
+            <span>Subcategories</span>
+          </button>
+
           {/* Brands */}
           <button
             onClick={() => onRouteChange('brands')}
@@ -92,6 +115,32 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
           >
             <Tag className="w-4 h-4 shrink-0" />
             <span>Brands</span>
+          </button>
+
+          {/* Units */}
+          <button
+            onClick={() => onRouteChange('units')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('units')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Scale className="w-4 h-4 shrink-0" />
+            <span>Units</span>
+          </button>
+
+          {/* Products & Variants */}
+          <button
+            onClick={() => onRouteChange('products')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('products')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Package className="w-4 h-4 shrink-0" />
+            <span>Products</span>
           </button>
 
           {/* Orders */}
@@ -170,6 +219,36 @@ export const AdminSidebar = ({ currentRoute, onRouteChange }) => {
           >
             <Palette className="w-4 h-4 shrink-0" />
             <span>Appearance</span>
+          </button>
+
+          {/* iPhone 16 Mobile Apps Section */}
+          <div className="pt-3 pb-1 px-3 text-[10px] font-bold text-white/50 uppercase tracking-wider flex items-center justify-between">
+            <span>iPhone 16 Mockup</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FF7622] animate-pulse"></span>
+          </div>
+
+          <button
+            onClick={() => onRouteChange('preview-user')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('preview-user')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Smartphone className="w-4 h-4 shrink-0 text-[#FFA767]" />
+            <span>Customer App</span>
+          </button>
+
+          <button
+            onClick={() => onRouteChange('preview-delivery')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-2.5 rounded-xl font-medium transition-all ${
+              isActive('preview-delivery')
+                ? 'bg-white text-[#6030ea] font-bold shadow-lg shadow-black/10'
+                : 'text-white/80 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Bike className="w-4 h-4 shrink-0 text-emerald-400" />
+            <span>Delivery Boy App</span>
           </button>
         </nav>
 

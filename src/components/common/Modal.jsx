@@ -41,7 +41,7 @@ export const Modal = ({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl'
   );
 };
 
-export const EmptyState = ({ title, message, icon: Icon }) => {
+export const EmptyState = ({ title, message, description, icon: Icon }) => {
   return (
     <div className="py-16 px-4 text-center flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200/60 shadow-sm">
       {Icon && (
@@ -50,7 +50,7 @@ export const EmptyState = ({ title, message, icon: Icon }) => {
         </div>
       )}
       <h3 className="text-sm font-bold text-[#181829]">{title}</h3>
-      <p className="text-xs text-[#8a87a6] mt-1 max-w-sm">{message}</p>
+      <p className="text-xs text-[#8a87a6] mt-1 max-w-sm">{message || description}</p>
     </div>
   );
 };

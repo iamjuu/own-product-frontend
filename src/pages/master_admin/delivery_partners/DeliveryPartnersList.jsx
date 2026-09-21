@@ -7,13 +7,20 @@ import {
   Star,
   FileText,
   Eye,
+  EyeOff,
   ShieldCheck,
   Check,
   Copy,
   Mail,
   ExternalLink,
   ShieldAlert,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  Phone,
+  User,
+  Lock,
+  Hash,
+  Key,
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 import { useAuth } from '../../../context/AuthContext';
@@ -37,6 +44,20 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
   const [generatedCredentials, setGeneratedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
 
+  // Add Delivery Partner Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addFormData, setAddFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    vehicleType: 'BIKE',
+    vehicleNumber: '',
+    autoApprove: true,
+    password: '',
+  });
+  const [isSubmittingPartner, setIsSubmittingPartner] = useState(false);
+  const [addError, setAddError] = useState('');
+
   useEffect(() => {
     setTab(defaultTab);
     setCurrentPage(1);
@@ -52,13 +73,19 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
         limit: 7,
       });
       if (response.success) {
-        setPartners(response.data.partners);
-        if (response.data.pagination) {
+        const partnersList = Array.isArray(response.data)
+          ? response.data
+          : (response.data?.partners || []);
+        setPartners(partnersList);
+        if (response.data?.pagination) {
           setPagination(response.data.pagination);
         }
+      } else {
+        setPartners([]);
       }
     } catch (err) {
       console.error('Failed to load delivery partners:', err);
+      setPartners([]);
     } finally {
       setIsLoading(false);
     }
@@ -77,6 +104,40 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
     e.preventDefault();
     setCurrentPage(1);
     fetchPartners(tab, search, 1);
+  };
+
+  const handleAddPartnerSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmittingPartner(true);
+    setAddError('');
+    try {
+      const response = await ApiClient.post(`${apiPrefix}/delivery-partners`, addFormData);
+      if (response.success) {
+        setIsAddModalOpen(false);
+        setAddFormData({
+          name: '',
+          phone: '',
+          email: '',
+          vehicleType: 'BIKE',
+          vehicleNumber: '',
+          autoApprove: true,
+          password: '',
+        });
+        if (response.credentials) {
+          setGeneratedCredentials(response.credentials);
+        }
+        if (response.data) {
+          setSelectedPartner(response.data);
+        }
+        fetchPartners(tab, search, 1);
+      } else {
+        setAddError(response.message || 'Failed to register delivery partner');
+      }
+    } catch (err) {
+      setAddError(err.message || 'Failed to register delivery partner');
+    } finally {
+      setIsSubmittingPartner(false);
+    }
   };
 
   const handleApprovePartner = async (partnerId) => {
@@ -114,17 +175,37 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
     }
   };
 
+  const [showPasswordIds, setShowPasswordIds] = useState({});
+  const [copiedPartnerId, setCopiedPartnerId] = useState(null);
+
+  const toggleShowPassword = (partnerId) => {
+    setShowPasswordIds((prev) => ({
+      ...prev,
+      [partnerId]: !prev[partnerId],
+    }));
+  };
+
+  const handleCopyRiderCredentials = (partner) => {
+    const password = partner.displayPassword || partner.generatedPassword || 'Rider@123';
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const text = `Email: ${partner.email}\nPassword: ${password}\nPortal: ${origin}`;
+    navigator.clipboard.writeText(text);
+    setCopiedPartnerId(partner._id);
+    setTimeout(() => setCopiedPartnerId(null), 2000);
+  };
+
   const handleCopyCredentials = () => {
     if (!generatedCredentials) return;
-    const text = `Email: ${generatedCredentials.email}\nPassword: ${generatedCredentials.password}\nPortal: http://localhost:5173`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const text = `Email: ${generatedCredentials.email}\nPassword: ${generatedCredentials.password}\nPortal: ${origin}`;
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header & Sub-Tabs */}
+    <div className="space-y-6">
+      {/* Top Banner Header */}
       <div className="theme-card p-6 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -145,16 +226,29 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
             </p>
           </div>
 
-          <form onSubmit={handleSearchSubmit} className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search rider name, phone, email..."
-              className="w-full pl-10 pr-4 py-2 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
-            />
-          </form>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+            <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-64 md:w-72">
+              <Search className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search rider name, phone, email..."
+                className="w-full pl-10 pr-4 py-2 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+              />
+            </form>
+
+            <button
+              onClick={() => {
+                setAddError('');
+                setIsAddModalOpen(true);
+              }}
+              className="flex items-center justify-center space-x-2 px-4 py-2.5 rounded-2xl bg-[#6339f4] hover:bg-[#5225e6] text-white text-xs font-bold shadow-md shadow-[#6339f4]/25 transition-all shrink-0 active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Delivery Partner</span>
+            </button>
+          </div>
         </div>
 
         {/* Tab Switcher */}
@@ -239,8 +333,73 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
                     <div className="flex justify-between">
                       <span className="text-[#8a87a6] text-[10px] uppercase font-bold">Applied:</span>
                       <span className="text-[#181829]">
-                        {new Date(partner.applicationDate).toLocaleDateString()}
+                        {new Date(partner.applicationDate || partner.createdAt || Date.now()).toLocaleDateString()}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Rider Login Credentials Box */}
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#f8f6ff] via-[#f2eeff] to-[#ebe5ff] border border-[#dcd3ff] text-xs space-y-2 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 text-xs font-bold text-[#181829]">
+                        <Key className="w-3.5 h-3.5 text-[#6339f4]" />
+                        <span>Login Credentials</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyRiderCredentials(partner);
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-white border border-[#d8ceff] hover:border-[#6339f4] text-[10px] font-bold text-[#6339f4] flex items-center space-x-1 shadow-2xs transition-all active:scale-95"
+                        title="Copy login credentials"
+                      >
+                        {copiedPartnerId === partner._id ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-600 font-bold">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-white/95 p-2.5 rounded-xl border border-[#ece8ff]">
+                      <div className="truncate">
+                        <span className="text-[9px] uppercase font-bold text-[#8a87a6] block">Email / Username</span>
+                        <span className="font-mono text-[#181829] font-bold text-xs truncate block" title={partner.email}>
+                          {partner.email}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] uppercase font-bold text-[#8a87a6] block">Password</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleShowPassword(partner._id);
+                            }}
+                            className="text-slate-400 hover:text-[#6339f4] p-0.5 rounded transition-colors"
+                            title={showPasswordIds[partner._id] ? 'Hide password' : 'Show password'}
+                          >
+                            {showPasswordIds[partner._id] ? (
+                              <EyeOff className="w-3.5 h-3.5" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                        <span className="font-mono font-bold text-[#6339f4] text-xs block truncate mt-0.5">
+                          {showPasswordIds[partner._id]
+                            ? (partner.displayPassword || partner.generatedPassword || 'Rider@123')
+                            : '••••••••••••'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -370,6 +529,72 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
               </div>
             )}
 
+            {/* Rider Login Credentials Box inside Modal */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-[#f8f6ff] via-[#f2eeff] to-[#ebe5ff] border border-[#dcd3ff] space-y-3 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 rounded-xl bg-[#6339f4] text-white">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-[#181829]">Delivery Partner Login Credentials</h4>
+                    <p className="text-[10px] text-[#8a87a6]">Rider credentials for the Delivery Boy App & Web Portal</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopyRiderCredentials(selectedPartner)}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-[#d8ceff] hover:border-[#6339f4] text-xs font-bold text-[#6339f4] flex items-center space-x-1.5 shadow-2xs transition-all active:scale-95"
+                >
+                  {copiedPartnerId === selectedPartner._id ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-600 font-bold">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Credentials</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-[#ece8ff]">
+                <div>
+                  <span className="text-[10px] font-bold text-[#8a87a6] uppercase block">Username / Email</span>
+                  <p className="font-mono font-bold text-xs text-[#181829] mt-0.5 select-all">{selectedPartner.email}</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#8a87a6] uppercase block">Password</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleShowPassword(selectedPartner._id)}
+                      className="text-slate-400 hover:text-[#6339f4] text-[11px] flex items-center space-x-1"
+                    >
+                      {showPasswordIds[selectedPartner._id] ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Hide</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Show</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="font-mono font-bold text-xs text-[#6339f4] mt-0.5 select-all">
+                    {showPasswordIds[selectedPartner._id]
+                      ? (selectedPartner.displayPassword || selectedPartner.generatedPassword || 'Rider@123')
+                      : '••••••••••••'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Submitted KYC Documents */}
             <div className="p-4 rounded-2xl bg-[#f0f2fb] space-y-2">
               <div className="flex items-center justify-between">
@@ -469,6 +694,188 @@ export const DeliveryPartnersList = ({ defaultTab = 'pending' }) => {
           </div>
         )}
       </Modal>
+
+      {/* ADD DELIVERY PARTNER MODAL */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          if (!isSubmittingPartner) {
+            setIsAddModalOpen(false);
+            setAddError('');
+          }
+        }}
+        title="Register New Delivery Partner"
+        maxWidth="max-w-lg"
+      >
+        <form onSubmit={handleAddPartnerSubmit} className="space-y-4">
+          {addError && (
+            <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 flex items-center space-x-2 text-xs text-rose-700">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>{addError}</span>
+            </div>
+          )}
+
+          {/* Full Name */}
+          <div>
+            <label className="block text-xs font-bold text-[#181829] mb-1.5">
+              Rider Full Name <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <User className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+              <input
+                type="text"
+                required
+                placeholder="e.g. Arjun Kumar"
+                value={addFormData.name}
+                onChange={(e) => setAddFormData({ ...addFormData, name: e.target.value })}
+                className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+              />
+            </div>
+          </div>
+
+          {/* Phone & Email Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">
+                Phone Number <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <Phone className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  required
+                  placeholder="+91 98455 00000"
+                  value={addFormData.phone}
+                  onChange={(e) => setAddFormData({ ...addFormData, phone: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">
+                Email Address <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+                <input
+                  type="email"
+                  required
+                  placeholder="arjun.rider@marketplace.com"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Vehicle Type & Number */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">
+                Vehicle Type
+              </label>
+              <select
+                value={addFormData.vehicleType}
+                onChange={(e) => setAddFormData({ ...addFormData, vehicleType: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
+              >
+                <option value="BIKE">Motorcycle / Bike</option>
+                <option value="SCOOTER">Scooter / Moped</option>
+                <option value="EV_BIKE">Electric Bike (EV)</option>
+                <option value="CYCLE">Bicycle</option>
+                <option value="CAR">Car / Delivery Van</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#181829] mb-1.5">
+                Vehicle Registration Plate
+              </label>
+              <div className="relative">
+                <Hash className="w-4 h-4 text-[#8a87a6] absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder="e.g. KA-01-AB-1234"
+                  value={addFormData.vehicleNumber}
+                  onChange={(e) => setAddFormData({ ...addFormData, vehicleNumber: e.target.value.toUpperCase() })}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 text-xs text-[#181829] uppercase placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Instant Verification & Account Provisioning Toggle */}
+          <div className="p-3.5 rounded-2xl bg-[#f0f2fb] border border-slate-200/80 space-y-3">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="pr-3">
+                <span className="text-xs font-bold text-[#181829] block">
+                  Instant Verification & Login Provisioning
+                </span>
+                <span className="text-[11px] text-[#8a87a6]">
+                  Activate partner immediately and generate login credentials for Delivery Boy App
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={addFormData.autoApprove}
+                onChange={(e) => setAddFormData({ ...addFormData, autoApprove: e.target.checked })}
+                className="w-5 h-5 accent-[#6339f4] rounded cursor-pointer shrink-0"
+              />
+            </label>
+
+            {addFormData.autoApprove && (
+              <div className="pt-2 border-t border-slate-200/80">
+                <label className="block text-[11px] font-bold text-[#181829] mb-1">
+                  Custom Password <span className="text-[10px] text-[#8a87a6] font-normal">(Optional — defaults to auto-generated password)</span>
+                </label>
+                <div className="relative">
+                  <Lock className="w-3.5 h-3.5 text-[#8a87a6] absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="Leave blank to auto-generate (e.g. Arjun@Rider2026)"
+                    value={addFormData.password}
+                    onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value })}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-[#181829] placeholder:text-[#8a87a6] focus:outline-none focus:border-[#6339f4]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Modal Footer Controls */}
+          <div className="pt-2 flex items-center justify-end space-x-2.5 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={isSubmittingPartner}
+              onClick={() => setIsAddModalOpen(false)}
+              className="px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-bold text-[#8a87a6] hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmittingPartner}
+              className="px-5 py-2.5 rounded-2xl bg-[#6339f4] hover:bg-[#5225e6] text-white text-xs font-bold shadow-md shadow-[#6339f4]/25 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95"
+            >
+              {isSubmittingPartner ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Registering...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>Create Delivery Partner</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
+
+export default DeliveryPartnersList;
