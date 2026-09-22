@@ -19,17 +19,22 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import { useCart } from '../../../context/CartContext';
+import ApiClient from '../../../api/client';
 import { LiveDeliveryTrackingModal } from '../../../components/tracking/LiveDeliveryTrackingModal';
 import { DesktopStorefront } from './components/DesktopStorefront';
 
 export const UserDashboard = ({ onNavigate }) => {
   const { user } = useAuth();
+  const { addToCart } = useCart();
   const [showLiveTracking, setShowLiveTracking] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [favorites, setFavorites] = useState({});
   const [addedItems, setAddedItems] = useState({});
   const [cartToast, setCartToast] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
+  const [latestOrder, setLatestOrder] = useState(null);
 
   // Live ticking countdown timer for Honey Combo deal
   const [timeLeft, setTimeLeft] = useState({
@@ -39,46 +44,56 @@ export const UserDashboard = ({ onNavigate }) => {
     seconds: 45
   });
 
+  // Fetch real products from API
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev.seconds > 0) {
-          return { ...prev, seconds: prev.seconds - 1 };
-        } else if (prev.minutes > 0) {
-          return { ...prev, minutes: prev.minutes - 1, seconds: 59 };
-        } else if (prev.hours > 0) {
-          return { ...prev, hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        } else if (prev.days > 0) {
-          return { ...prev, days: prev.days - 1, hours: 23, minutes: 59, seconds: 59 };
+    let isMounted = true;
+    ApiClient.get('/products')
+      .then((res) => {
+        const productList = Array.isArray(res.data) ? res.data : (res.data?.products || []);
+        if (isMounted && productList.length > 0) {
+          const formatted = productList.map((p) => {
+            let discount = '-20%';
+            if (p.mrp && p.mrp > p.price) {
+              const diff = Math.round(((p.mrp - p.price) / p.mrp) * 100);
+              discount = `-${diff}%`;
+            }
+            const rawCat = (p.categoryId?.name || p.categoryName || p.category || 'General').trim();
+            return {
+              id: p._id,
+              _id: p._id,
+              slug: p.slug,
+              name: p.name,
+              category: rawCat,
+              categoryUpper: rawCat.toUpperCase(),
+              price: Number(p.price) || 0,
+              originalPrice: Number(p.mrp) || Number(p.price) * 1.25,
+              discount,
+              rating: 5.0,
+              deliveryTime: '15 min',
+              image: p.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&auto=format&fit=crop&q=80',
+              description: p.description || 'Farm-fresh certified quality guaranteed.',
+            };
+          });
+          setAllProducts(formatted);
         }
-        return prev;
-      });
-    }, 1000);
+      })
+      .catch((err) => console.warn('Could not fetch dashboard products:', err));
 
-    return () => clearInterval(timer);
-  }, []);
+    // Also fetch latest user order if authenticated
+    if (user) {
+      ApiClient.get('/user/orders')
+        .then((res) => {
+          if (isMounted && res.data && res.data.length > 0) {
+            setLatestOrder(res.data[0]);
+          }
+        })
+        .catch(() => {});
+    }
 
-  // Active simulated in-transit order for customer live experience
-  const activeOrder = {
-    _id: 'ord-customer-live-01',
-    orderNumber: 'ORD-8924',
-    status: 'OUT_FOR_DELIVERY',
-    shopName: 'Local Run Indiranagar Express Hub',
-    customerName: user?.name || 'Halal (Halal Lab office)',
-    deliveryPartnerName: 'Rahul Kumar (Rider Partner)',
-    deliveryPartnerPhone: '+91 98765 43210',
-    totalAmount: 485,
-    deliveryOtp: '4829',
-    deliveryAddress: {
-      street: 'Halal Lab office, HAL 2nd Stage, Indiranagar',
-      city: 'Bengaluru',
-    },
-    items: [
-      { name: 'Fresh Farm Chicken Breast Fillet (1kg)', quantity: 1, price: 320 },
-      { name: 'Organic Vine Red Tomatoes (1kg)', quantity: 1, price: 48 },
-      { name: 'Crisp Garden Broccoli Head (500g)', quantity: 1, price: 85 },
-    ],
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // 5 CORE CATEGORIES (identical on mobile & desktop)
   const categories = [
@@ -120,152 +135,17 @@ export const UserDashboard = ({ onNavigate }) => {
     },
   ];
 
-  // 10 REAL PRODUCTS ACROSS THE 5 CORE CATEGORIES
-  const allProducts = [
-    // VEGETABLES
-    {
-      id: 'prod-veg-1',
-      name: 'Organic Vine Red Tomatoes (1 kg)',
-      category: 'Vegetables',
-      price: '₹48.00',
-      originalPrice: '₹60.00',
-      discount: '-20%',
-      rating: '4.9',
-      deliveryTime: '15 min',
-      image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&auto=format&fit=crop&q=80',
-      description: 'Plump, naturally ripened farm tomatoes harvested within 12 hours.'
-    },
-    {
-      id: 'prod-veg-2',
-      name: 'Crisp Garden Broccoli Head (500g)',
-      category: 'Vegetables',
-      price: '₹85.00',
-      originalPrice: '₹110.00',
-      discount: '-22%',
-      rating: '4.8',
-      deliveryTime: '12 min',
-      image: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&auto=format&fit=crop&q=80',
-      description: 'Tender florets and crunchy stalks packed with fiber and vitamins.'
-    },
-    {
-      id: 'prod-veg-3',
-      name: 'Crisp English Cucumber (500g)',
-      category: 'Vegetables',
-      price: '₹35.00',
-      originalPrice: '₹45.00',
-      discount: '-22%',
-      rating: '4.7',
-      deliveryTime: '12 min',
-      image: 'https://images.unsplash.com/photo-1604977042946-1eecc30f269e?w=400&auto=format&fit=crop&q=80',
-      description: 'Hydrating, crunchy organic cucumbers from certified greenhouse farms.'
-    },
-    // CHICKEN
-    {
-      id: 'prod-chk-1',
-      name: 'Fresh Farm Chicken Breast Fillet (1 kg)',
-      category: 'Chicken',
-      price: '₹320.00',
-      originalPrice: '₹390.00',
-      discount: '-18%',
-      rating: '5.0',
-      deliveryTime: '15 min',
-      image: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=400&auto=format&fit=crop&q=80',
-      description: '100% Halal certified, boneless, skinless tender cuts with zero antibiotics.'
-    },
-    {
-      id: 'prod-chk-2',
-      name: 'Whole Farm Spring Chicken Curry Cut (1 kg)',
-      category: 'Chicken',
-      price: '₹280.00',
-      originalPrice: '₹340.00',
-      discount: '-17%',
-      rating: '4.9',
-      deliveryTime: '15 min',
-      image: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=400&auto=format&fit=crop&q=80',
-      description: 'Cleaned, skin-off precision cuts ideal for homestyle aromatic curries.'
-    },
-    // FISH
-    {
-      id: 'prod-fsh-1',
-      name: 'Fresh Atlantic Pink Salmon Fillet (500g)',
-      category: 'Fish',
-      price: '₹480.00',
-      originalPrice: '₹590.00',
-      discount: '-18%',
-      rating: '4.9',
-      deliveryTime: '18 min',
-      image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&auto=format&fit=crop&q=80',
-      description: 'Rich in Omega-3 oils, sashimi grade, deboned and packed on dry ice.'
-    },
-    {
-      id: 'prod-fsh-2',
-      name: 'White Pomfret Whole Cleaned (500g)',
-      category: 'Fish',
-      price: '₹620.00',
-      originalPrice: '₹750.00',
-      discount: '-17%',
-      rating: '4.8',
-      deliveryTime: '18 min',
-      image: 'https://images.unsplash.com/photo-1534939561126-855b8675edd7?w=400&auto=format&fit=crop&q=80',
-      description: 'Delicate taste and soft texture, cleaned and ready for pan frying.'
-    },
-    // BEEF
-    {
-      id: 'prod-bf-1',
-      name: 'Prime Halal Beef Tenderloin Steak (750g)',
-      category: 'Beef',
-      price: '₹550.00',
-      originalPrice: '₹680.00',
-      discount: '-19%',
-      rating: '4.9',
-      deliveryTime: '20 min',
-      image: 'https://images.unsplash.com/photo-1551028150-64b9f398f678?w=400&auto=format&fit=crop&q=80',
-      description: 'Melt-in-your-mouth halal beef cut from pasture-raised, grass-fed cattle.'
-    },
-    {
-      id: 'prod-bf-2',
-      name: 'Lean Halal Beef Mince Keema (500g)',
-      category: 'Beef',
-      price: '₹390.00',
-      originalPrice: '₹480.00',
-      discount: '-18%',
-      rating: '4.8',
-      deliveryTime: '18 min',
-      image: 'https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=400&auto=format&fit=crop&q=80',
-      description: 'Double-ground fine lean beef mince ideal for kebabs, burgers and curries.'
-    },
-    // GROCERY
-    {
-      id: 'prod-gro-1',
-      name: 'Cold Pressed Virgin Olive Oil (1L)',
-      category: 'Grocery',
-      price: '₹650.00',
-      originalPrice: '₹820.00',
-      discount: '-20%',
-      rating: '4.9',
-      deliveryTime: '15 min',
-      image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&auto=format&fit=crop&q=80',
-      description: 'First cold pressed, unfiltered, rich in polyphenols and vitamins.'
-    },
-    {
-      id: 'prod-gro-2',
-      name: 'Pure Wildflower Organic Honey (500g)',
-      category: 'Grocery',
-      price: '₹290.00',
-      originalPrice: '₹360.00',
-      discount: '-19%',
-      rating: '5.0',
-      deliveryTime: '15 min',
-      image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&auto=format&fit=crop&q=80',
-      description: 'Raw, unpasteurized forest honey with natural beeswax and pollen traces.'
-    }
-  ];
+
 
   // Filtering products based on category & search query
   const filteredProducts = allProducts.filter((product) => {
-    const matchesCategory =
-      selectedCategory === 'All' ||
-      product.category.toLowerCase() === selectedCategory.toLowerCase();
+    let matchesCategory = true;
+    if (selectedCategory !== 'All') {
+      const target = selectedCategory.toLowerCase();
+      const pCat = product.category.toLowerCase();
+      matchesCategory = pCat.includes(target) || (target === 'vegetables' && pCat.includes('veg')) || (target === 'chicken' && pCat.includes('chicken')) || (target === 'fish' && (pCat.includes('fish') || pCat.includes('seafood'))) || (target === 'beef' && (pCat.includes('beef') || pCat.includes('meat'))) || (target === 'grocery' && (pCat.includes('groc') || pCat.includes('staple')));
+    }
+
     const matchesSearch =
       searchQuery.trim() === '' ||
       product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -278,12 +158,14 @@ export const UserDashboard = ({ onNavigate }) => {
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handleAddToCart = (id, name, e) => {
+  const handleAddToCart = (product, e) => {
     e?.stopPropagation();
-    setAddedItems((prev) => ({ ...prev, [id]: true }));
-    setCartToast(`Added ${name} to bag!`);
+    addToCart(product, 1);
+    const prodId = product.id || product._id;
+    setAddedItems((prev) => ({ ...prev, [prodId]: true }));
+    setCartToast(`Added ${product.name} to bag!`);
     setTimeout(() => {
-      setAddedItems((prev) => ({ ...prev, [id]: false }));
+      setAddedItems((prev) => ({ ...prev, [prodId]: false }));
       setCartToast(null);
     }, 2200);
   };
@@ -345,34 +227,36 @@ export const UserDashboard = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Live In-Transit Order Banner (Live Delivery Radar & OTP 4829) */}
-        <div className="rounded-2xl bg-gradient-to-r from-[#FF7622] to-[#FF9344] p-3.5 text-white flex items-center justify-between shadow-md shadow-orange-500/20">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0">
-              <Bike className="w-5 h-5 animate-bounce" />
-            </div>
-            <div className="leading-tight">
-              <div className="flex items-center space-x-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded-full">
-                  LIVE RADAR
-                </span>
-                <span className="text-[10px] font-mono bg-white/30 text-white px-1.5 py-0.5 rounded font-bold">
-                  OTP 4829
-                </span>
+        {/* Live In-Transit Order Banner (Live Delivery Radar & OTP 4829) - Visible for logged in users */}
+        {user && (
+          <div className="rounded-2xl bg-gradient-to-r from-[#FF7622] to-[#FF9344] p-3.5 text-white flex items-center justify-between shadow-md shadow-orange-500/20">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shrink-0">
+                <Bike className="w-5 h-5 animate-bounce" />
               </div>
-              <p className="text-xs font-bold text-white mt-1">
-                Rider Rahul Kumar arriving in ~11 mins
-              </p>
+              <div className="leading-tight">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-black/20 px-2 py-0.5 rounded-full">
+                    LIVE RADAR
+                  </span>
+                  <span className="text-[10px] font-mono bg-white/30 text-white px-1.5 py-0.5 rounded font-bold">
+                    OTP 4829
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-white mt-1">
+                  Rider Rahul Kumar arriving in ~11 mins
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => setShowLiveTracking(true)}
+              className="px-3 py-2 rounded-xl bg-white text-[#FF7622] font-black text-[11px] flex items-center space-x-1 shadow-sm active:scale-95 transition-all shrink-0"
+            >
+              <span>Track</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <button
-            onClick={() => setShowLiveTracking(true)}
-            className="px-3 py-2 rounded-xl bg-white text-[#FF7622] font-black text-[11px] flex items-center space-x-1 shadow-sm active:scale-95 transition-all shrink-0"
-          >
-            <span>Track</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        )}
 
         {/* Quick Mobile Feature Navigation Badges */}
         <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-none">
@@ -582,12 +466,12 @@ export const UserDashboard = ({ onNavigate }) => {
                   {/* Price & Add to Cart Button */}
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex items-baseline space-x-1.5">
-                      <span className="text-sm font-black text-[#FF7622]">{prod.price}</span>
-                      <span className="text-[10px] text-slate-400 line-through">{prod.originalPrice}</span>
+                      <span className="text-sm font-black text-[#FF7622]">₹{prod.price}</span>
+                      <span className="text-[10px] text-slate-400 line-through">₹{prod.originalPrice}</span>
                     </div>
 
                     <button
-                      onClick={(e) => handleAddToCart(prod.id, prod.name, e)}
+                      onClick={(e) => handleAddToCart(prod, e)}
                       className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center space-x-1 transition-all active:scale-95 ${
                         addedItems[prod.id]
                           ? 'bg-emerald-500 text-white'
@@ -649,7 +533,25 @@ export const UserDashboard = ({ onNavigate }) => {
       {/* Live Swiggy Delivery Tracking Modal */}
       <LiveDeliveryTrackingModal
         isOpen={showLiveTracking}
-        order={activeOrder}
+        order={latestOrder || {
+          _id: 'ord-customer-live-01',
+          orderNumber: 'ORD-8924',
+          status: 'OUT_FOR_DELIVERY',
+          shopName: 'Local Run Indiranagar Express Hub',
+          customerName: user?.name || 'Customer Account',
+          deliveryPartnerName: 'Rahul Kumar (Rider Partner)',
+          deliveryPartnerPhone: '+91 98765 43210',
+          totalAmount: 485,
+          deliveryOtp: '4829',
+          deliveryAddress: {
+            street: 'Indiranagar 100ft Road, HAL 2nd Stage',
+            city: 'Bengaluru',
+          },
+          items: [
+            { name: 'Fresh Farm Chicken Breast (1kg)', quantity: 1, price: 320 },
+            { name: 'Organic Vine Red Tomatoes (1kg)', quantity: 1, price: 48 },
+          ],
+        }}
         onClose={() => setShowLiveTracking(false)}
       />
     </div>

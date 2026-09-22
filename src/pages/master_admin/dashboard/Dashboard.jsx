@@ -60,7 +60,7 @@ export const Dashboard = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-4">
           <PlatformActorOverview overview={overview} finance={finance} />
-          <RecentTransactionsTable />
+          <RecentTransactionsTable recentOrders={data?.recentOrders} />
         </div>
         <AuditComplianceRing />
       </div>

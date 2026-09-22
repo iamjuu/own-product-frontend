@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PlatformProvider } from './context/PlatformContext';
+import { CartProvider } from './context/CartContext';
 import { Login } from './pages/auth/Login';
 
 // User / Customer Components
@@ -195,7 +196,7 @@ const AdminRouter = () => {
   // - If user accessed '/admin' or '/admin/*', require login
   // - Otherwise, show storefront pages wrapped in UserLayout!
   if (!isAuthenticated) {
-    if (currentRoute === 'login' || currentRoute === 'admin' || currentRoute.startsWith('admin/') || currentRoute === 'profile') {
+    if (currentRoute === 'login' || currentRoute === 'admin' || currentRoute.startsWith('admin/') || currentRoute === 'profile' || currentRoute === 'orders') {
       return <Login onBackToHome={() => navigateTo('home')} />;
     }
 
@@ -369,7 +370,9 @@ export default function App() {
   return (
     <AuthProvider>
       <PlatformProvider>
-        <AdminRouter />
+        <CartProvider>
+          <AdminRouter />
+        </CartProvider>
       </PlatformProvider>
     </AuthProvider>
   );

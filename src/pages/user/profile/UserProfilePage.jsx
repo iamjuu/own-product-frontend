@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Mail, 
@@ -20,44 +20,40 @@ import {
   Plus
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
+import ApiClient from '../../../api/client';
+import { LiveDeliveryTrackingModal } from '../../../components/tracking/LiveDeliveryTrackingModal';
 
 export const UserProfilePage = ({ onNavigate }) => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'addresses' | 'wallet'
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [trackingOrder, setTrackingOrder] = useState(null);
 
-  const mockOrders = [
-    {
-      id: 'ORD-8924',
-      date: 'Today, 2:45 PM',
-      status: 'Out for Delivery',
-      statusColor: 'bg-amber-100 text-amber-800 border-amber-200',
-      otp: '4829',
-      rider: 'Vikram Rider',
-      riderPhone: '+91 98765 43210',
-      items: [
-        { name: 'Fresh Farm Chicken Breast (1kg)', qty: 1, price: '₹320' },
-        { name: 'Organic Roma Tomatoes (1kg)', qty: 1, price: '₹48' },
-        { name: 'Organic Green Broccoli (500g)', qty: 1, price: '₹85' }
-      ],
-      total: '₹453',
-      address: 'Halal Lab office, 542 Halal Tower, Indiranagar'
-    },
-    {
-      id: 'ORD-8710',
-      date: 'Yesterday, 11:30 AM',
-      status: 'Delivered',
-      statusColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      otp: 'COMPLETED',
-      rider: 'Rahul Kumar',
-      riderPhone: '+91 98451 22345',
-      items: [
-        { name: 'Fresh Atlantic Salmon Fillet (500g)', qty: 1, price: '₹480' },
-        { name: 'Farm Fresh Milk (1L)', qty: 2, price: '₹130' }
-      ],
-      total: '₹610',
-      address: 'Halal Lab office, 542 Halal Tower, Indiranagar'
+  useEffect(() => {
+    let isMounted = true;
+    if (user) {
+      setLoadingOrders(true);
+      ApiClient.get('/user/orders')
+        .then((res) => {
+          if (isMounted && res.data) {
+            setOrders(res.data);
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not fetch user orders:', err);
+        })
+        .finally(() => {
+          if (isMounted) setLoadingOrders(false);
+        });
+    } else {
+      setLoadingOrders(false);
     }
-  ];
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const mockAddresses = [
     {
@@ -146,7 +142,7 @@ export const UserProfilePage = ({ onNavigate }) => {
         {/* Tab Navigation */}
         <div className="flex items-center space-x-2 border-b border-slate-200 overflow-x-auto pb-2">
           {[
-            { id: 'orders', label: 'My Orders', icon: ShoppingBag, count: 2 },
+            { id: 'orders', label: 'My Orders', icon: ShoppingBag, count: orders.length },
             { id: 'addresses', label: 'Saved Addresses', icon: MapPin, count: 2 },
             { id: 'wallet', label: 'Wallet & Rewards', icon: CreditCard }
           ].map((tab) => {
@@ -179,97 +175,158 @@ export const UserProfilePage = ({ onNavigate }) => {
         {/* TAB 1: MY ORDERS */}
         {activeTab === 'orders' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200/70 shadow-2xs">
               <div>
-                <h2 className="text-lg font-black text-[#181C2E]">Recent Orders</h2>
-                <p className="text-xs text-slate-500">Track current in-flight delivery and view receipt history</p>
+                <h2 className="text-lg font-black text-[#181C2E]">Order History & In-Transit Deliveries</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Real-time status, OTP security code, and delivery partner details</p>
               </div>
               <button 
                 onClick={() => onNavigate?.('shop')}
-                className="text-xs font-black text-[#FF7622] hover:underline flex items-center space-x-1"
+                className="px-4 py-2 rounded-xl bg-[#FFF4EC] text-[#FF7622] hover:bg-[#FFE6D7] text-xs font-black transition-all flex items-center space-x-1.5 self-start sm:self-center"
               >
-                <span>Order More Items</span>
+                <span>Browse Products</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-5">
-              {mockOrders.map((order) => (
-                <div 
-                  key={order.id} 
-                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-5 hover:border-[#FF7622]/40 transition-colors"
-                >
-                  {/* Order Top Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-[#FF7622] flex items-center justify-center font-black">
-                        <Package className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-sm font-black text-[#181C2E]">{order.id}</span>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${order.statusColor}`}>
-                            {order.status}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{order.date}</p>
-                      </div>
-                    </div>
+            {loadingOrders ? (
+              <div className="py-12 text-center text-xs font-bold text-slate-400">
+                Loading orders from server...
+              </div>
+            ) : orders.length > 0 ? (
+              <div className="grid grid-cols-1 gap-5">
+                {orders.map((order) => {
+                  const isOutForDelivery = order.status === 'OUT_FOR_DELIVERY' || order.status === 'CONFIRMED' || order.status === 'PREPARING';
+                  const isDelivered = order.status === 'DELIVERED';
+                  const displayDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }) : 'Recent Order';
 
-                    {/* Doorstep OTP Badge if out for delivery */}
-                    {order.otp !== 'COMPLETED' ? (
-                      <div className="bg-[#FFF4EC] border border-[#FF7622]/30 rounded-2xl px-4 py-2 flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-[#FF7622] text-white flex items-center justify-center">
-                          <KeyRound className="w-4 h-4" />
+                  return (
+                    <div 
+                      key={order._id || order.id} 
+                      className="bg-white rounded-[24px] p-6 border border-slate-200/80 shadow-xs space-y-5 hover:shadow-md hover:border-[#FF7622]/40 transition-all"
+                    >
+                      {/* Order Header Row */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                        <div className="flex items-center space-x-3.5">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black ${
+                            isOutForDelivery ? 'bg-orange-50 text-[#FF7622]' : 'bg-emerald-50 text-emerald-600'
+                          }`}>
+                            <Package className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2.5">
+                              <span className="font-mono text-sm font-black text-[#181C2E]">#{order.orderNumber || order.id}</span>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                isDelivered ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'
+                              }`}>
+                                {order.status?.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium mt-0.5">{displayDate}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-[#646982] uppercase tracking-wider">DOORSTEP OTP</p>
-                          <p className="text-base font-black text-[#FF7622] tracking-widest">{order.otp}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-600">
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Completed & Rated 5★</span>
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Items List */}
-                  <div className="space-y-2">
-                    {order.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-xs py-1">
-                        <span className="text-slate-700 font-semibold">
-                          {item.name} <span className="text-slate-400">× {item.qty}</span>
+                        {/* Doorstep OTP Badge if out for delivery */}
+                        {!isDelivered && order.deliveryOtp ? (
+                          <div className="bg-[#FFF4EC] border border-[#FF7622]/30 rounded-2xl px-4 py-2 flex items-center space-x-3 shadow-2xs">
+                            <div className="w-8 h-8 rounded-full bg-[#FF7622] text-white flex items-center justify-center shadow-xs">
+                              <KeyRound className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-[9px] font-black text-[#646982] uppercase tracking-wider">DOORSTEP OTP</p>
+                              <p className="text-base font-black text-[#FF7622] tracking-widest leading-tight">{order.deliveryOtp}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200/60">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Delivered & Verified</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Items List */}
+                      <div className="space-y-2 bg-[#FAFBFD] p-4 rounded-2xl border border-slate-100">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                          Order Items ({order.items?.length || 0})
                         </span>
-                        <span className="font-bold text-[#181C2E]">{item.price}</span>
+                        {order.items?.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs py-0.5">
+                            <span className="text-slate-700 font-medium flex items-center space-x-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#FF7622]"></span>
+                              <span>{item.name}</span>
+                              <span className="text-slate-400 font-bold">× {item.quantity || item.qty}</span>
+                            </span>
+                            <span className="font-extrabold text-[#181C2E]">₹{(item.price * (item.quantity || item.qty || 1))}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
 
-                  {/* Bottom Summary Bar */}
-                  <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center space-x-2 text-xs text-slate-500">
-                      <Truck className="w-4 h-4 text-[#FF7622]" />
-                      <span>Delivery Partner: <strong className="text-slate-800">{order.rider}</strong> ({order.riderPhone})</span>
-                    </div>
+                      {/* Bottom Summary Bar */}
+                      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center space-x-3 text-xs text-slate-600">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                            <Truck className="w-4 h-4 text-[#FF7622]" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold block">Delivery Partner</span>
+                            <span className="font-bold text-slate-800">{order.deliveryPartnerName || 'Rahul Kumar'}</span>
+                            <span className="text-slate-400 ml-1 font-mono text-[11px]">({order.deliveryPartnerPhone || '+91 98765 43210'})</span>
+                          </div>
+                        </div>
 
-                    <div className="flex items-center space-x-4">
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Paid</span>
-                        <span className="text-base font-black text-[#FF7622]">{order.total}</span>
+                        <div className="flex items-center justify-between sm:justify-end space-x-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          <div className="text-left sm:text-right">
+                            <span className="text-[10px] text-slate-400 block uppercase font-bold">Total Paid</span>
+                            <span className="text-lg font-black text-[#FF7622]">₹{order.totalAmount || order.total}</span>
+                          </div>
+
+                          {!isDelivered ? (
+                            <button 
+                              onClick={() => setTrackingOrder(order)}
+                              className="px-4 py-2.5 rounded-xl bg-[#FF7622] hover:bg-[#E56314] text-white text-xs font-black transition-all shadow-sm active:scale-95 flex items-center space-x-1.5"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Live Radar</span>
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => onNavigate?.('shop')}
+                              className="px-4 py-2.5 rounded-xl bg-[#181C2E] hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center space-x-1.5"
+                            >
+                              <span>Reorder</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <button 
-                        onClick={() => onNavigate?.('orders')}
-                        className="px-4 py-2 rounded-xl bg-[#181C2E] hover:bg-[#2c324e] text-white text-xs font-bold transition-all"
-                      >
-                        Live Tracking Radar
-                      </button>
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs space-y-4">
+                <div className="w-16 h-16 rounded-full bg-orange-50 text-[#FF7622] flex items-center justify-center mx-auto">
+                  <ShoppingBag className="w-8 h-8" />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <h3 className="text-base font-black text-[#181C2E]">No Orders Placed Yet</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    You haven't placed any fresh meat, seafood or grocery orders yet. Add items to cart for 15-minute doorstep delivery!
+                  </p>
+                </div>
+                <button
+                  onClick={() => onNavigate?.('shop')}
+                  className="px-6 py-3 rounded-xl bg-[#FF7622] text-white font-black text-xs shadow-md shadow-orange-500/20 hover:bg-[#E56314] transition-all"
+                >
+                  Start Shopping
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -377,6 +434,15 @@ export const UserProfilePage = ({ onNavigate }) => {
         )}
 
       </div>
+
+      {/* Live Delivery Radar Modal */}
+      {trackingOrder && (
+        <LiveDeliveryTrackingModal
+          isOpen={!!trackingOrder}
+          order={trackingOrder}
+          onClose={() => setTrackingOrder(null)}
+        />
+      )}
     </div>
   );
 };

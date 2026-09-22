@@ -23,6 +23,8 @@ import {
   X,
   SlidersHorizontal,
   Sliders,
+  Truck,
+  Store,
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 import { ConfirmDialog, Modal } from '../../../components/common/Modal';
@@ -63,14 +65,16 @@ const PRESET_PRODUCT_IMAGES = [
   },
 ];
 
-export const AdminProductsList = () => {
+export const AdminProductsList = ({ onNavigate }) => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [units, setUnits] = useState([]);
+  const [shops, setShops] = useState([]);
 
   const [search, setSearch] = useState('');
+  const [selectedShopFilter, setSelectedShopFilter] = useState('ALL');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL');
   const [selectedSubcategoryFilter, setSelectedSubcategoryFilter] = useState('ALL');
   const [selectedBrandFilter, setSelectedBrandFilter] = useState('ALL');
@@ -102,6 +106,7 @@ export const AdminProductsList = () => {
     brandId: '',
     description: '',
     image: '',
+    deliveryPrice: '',
     isActive: true,
   });
   const [formSubcategories, setFormSubcategories] = useState([]);
@@ -114,6 +119,7 @@ export const AdminProductsList = () => {
     setIsLoading(true);
     try {
       const params = {
+        shopId: selectedShopFilter !== 'ALL' ? selectedShopFilter : undefined,
         categoryId: selectedCategoryFilter !== 'ALL' ? selectedCategoryFilter : undefined,
         subcategoryId: selectedSubcategoryFilter !== 'ALL' ? selectedSubcategoryFilter : undefined,
         brandId: selectedBrandFilter !== 'ALL' ? selectedBrandFilter : undefined,
@@ -132,20 +138,22 @@ export const AdminProductsList = () => {
     }
   };
 
-  // 2. Fetch Master Taxonomies (Categories, Subcategories, Brands, Units)
+  // 2. Fetch Master Taxonomies (Categories, Subcategories, Brands, Units, Shops)
   const fetchMasterData = async () => {
     try {
-      const [catRes, subRes, brandRes, unitRes] = await Promise.all([
+      const [catRes, subRes, brandRes, unitRes, shopsRes] = await Promise.all([
         ApiClient.get('/categories'),
         ApiClient.get('/subcategories'),
         ApiClient.get('/brands'),
         ApiClient.get('/units'),
+        ApiClient.get('/admin/shops'),
       ]);
 
       if (catRes?.success) setCategories(Array.isArray(catRes.data) ? catRes.data : catRes.data?.categories || []);
       if (subRes?.success) setSubcategories(Array.isArray(subRes.data) ? subRes.data : subRes.data?.subcategories || []);
       if (brandRes?.success) setBrands(Array.isArray(brandRes.data) ? brandRes.data : brandRes.data?.brands || []);
       if (unitRes?.success) setUnits(Array.isArray(unitRes.data) ? unitRes.data : unitRes.data?.units || []);
+      if (shopsRes?.success) setShops(Array.isArray(shopsRes.data) ? shopsRes.data : shopsRes.data?.shops || []);
     } catch (err) {
       console.error('Failed to load catalog masters:', err);
     }
@@ -157,7 +165,7 @@ export const AdminProductsList = () => {
 
   useEffect(() => {
     fetchProducts();
-  }, [selectedCategoryFilter, selectedSubcategoryFilter, selectedBrandFilter, statusFilter]);
+  }, [selectedShopFilter, selectedCategoryFilter, selectedSubcategoryFilter, selectedBrandFilter, statusFilter]);
 
   // Load Subcategories when Category is selected in Product Form
   const handleCategoryChange = (catId) => {
@@ -172,23 +180,13 @@ export const AdminProductsList = () => {
     setFormSubcategories(filteredSubs);
   };
 
-  // Open Add Product Page
+  // Open Add Product Page: Redirect to Shops because products strictly belong to a shop
   const handleOpenAdd = () => {
-    setSelectedProduct(null);
-    setFormData({
-      name: '',
-      categoryId: '',
-      subcategoryId: '',
-      brandId: '',
-      description: '',
-      image: '',
-      isActive: true,
-    });
-    setFormSubcategories([]);
-    setFormError('');
-    setFormSuccess('');
-    setPageMode('add');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (onNavigate) {
+      onNavigate('admin/shops');
+    } else {
+      window.location.hash = '#admin/shops';
+    }
   };
 
   // Open Edit Product Page
@@ -210,6 +208,7 @@ export const AdminProductsList = () => {
       brandId: brandId,
       description: product.description || '',
       image: product.image || '',
+      deliveryPrice: product.deliveryPrice !== null && product.deliveryPrice !== undefined ? product.deliveryPrice : '',
       isActive: product.isActive !== undefined ? product.isActive : true,
     });
     setFormError('');
@@ -246,6 +245,7 @@ export const AdminProductsList = () => {
         brandId: formData.brandId || null,
         description: formData.description.trim(),
         image: formData.image.trim(),
+        deliveryPrice: formData.deliveryPrice !== '' ? Number(formData.deliveryPrice) : null,
         isActive: formData.isActive,
       };
 
@@ -414,7 +414,7 @@ export const AdminProductsList = () => {
   // ==========================================
   // VIEW: ADD / EDIT PRODUCT FORM
   // ==========================================
-  if (pageMode === 'add' || pageMode === 'edit') {
+  if (pageMode === 'edit') {
     const activeSubcat = formSubcategories.find((s) => s._id === formData.subcategoryId);
     const subcatAllowedUnitObjects = activeSubcat
       ? units.filter((u) => (activeSubcat.allowedUnitIds || []).some((id) => (typeof id === 'object' ? id._id === u._id : id === u._id)))
@@ -436,9 +436,7 @@ export const AdminProductsList = () => {
             <ChevronRight className="w-3 h-3" />
             <span>Products</span>
             <ChevronRight className="w-3 h-3" />
-            <span className="font-semibold text-gray-800">
-              {pageMode === 'add' ? 'Create Product' : 'Edit Product'}
-            </span>
+            <span className="font-semibold text-gray-800">Edit Product</span>
           </div>
         </div>
 
@@ -446,13 +444,13 @@ export const AdminProductsList = () => {
         <div className="bg-gradient-to-r from-[#6030ea] to-[#8050f5] p-6 rounded-3xl text-white shadow-xl flex items-center justify-between">
           <div>
             <span className="px-3 py-1 rounded-full bg-white/20 text-white text-[11px] font-bold uppercase tracking-wider mb-2 inline-block">
-              {pageMode === 'add' ? 'Master Catalog Addition' : 'Master Catalog Modification'}
+              Product Details & Configuration
             </span>
             <h1 className="text-2xl font-black">
-              {pageMode === 'add' ? 'Create Master Product' : `Edit '${formData.name}'`}
+              Edit '{formData.name}'
             </h1>
             <p className="text-white/80 text-xs mt-1">
-              Select Category, Subcategory, and Brand. Product variants (units & quantities) will be configured after creation.
+              Update Category, Subcategory, Brand, and specifications for this shop product.
             </p>
           </div>
           <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center text-white shrink-0 border border-white/30 backdrop-blur-md">
@@ -642,6 +640,31 @@ export const AdminProductsList = () => {
                 </div>
               </div>
 
+              {/* Delivery Price Override */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-[#6030ea]" />
+                    <span>Product Delivery Price (₹) (Optional Override)</span>
+                  </span>
+                  <span className="text-[11px] text-gray-400 font-normal">
+                    Leave blank to inherit category rate
+                  </span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-2.5 text-xs font-bold text-[#6030ea]">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formData.deliveryPrice !== undefined ? formData.deliveryPrice : ''}
+                    onChange={(e) => setFormData({ ...formData, deliveryPrice: e.target.value })}
+                    placeholder="e.g. 35 (or leave blank to inherit category rate)"
+                    className="w-full pl-8 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea] font-medium"
+                  />
+                </div>
+              </div>
+
               {/* Status Toggle */}
               <div className="pt-2 flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-200">
                 <div>
@@ -676,7 +699,7 @@ export const AdminProductsList = () => {
               className="px-6 py-2.5 text-sm font-bold text-white bg-[#6030ea] hover:bg-[#4e22c7] rounded-xl shadow-lg shadow-[#6030ea]/20 transition-all flex items-center space-x-2 disabled:opacity-50"
             >
               {isSubmitting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              <span>{pageMode === 'add' ? 'Save & Create Product' : 'Save Changes'}</span>
+              <span>Save Changes</span>
             </button>
           </div>
         </form>
@@ -698,9 +721,9 @@ export const AdminProductsList = () => {
               Master Catalog Governance
             </span>
           </div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Products & Product Variants</h1>
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Product Catalog Overview</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            Connect Category → Subcategory → Brand → Product → Product Variants (Unit & Quantity).
+            Platform-wide inventory across all 4 shops. Products are managed under their respective store.
           </p>
         </div>
 
@@ -716,16 +739,17 @@ export const AdminProductsList = () => {
           <button
             onClick={handleOpenAdd}
             className="flex items-center space-x-2 px-5 py-2.5 bg-[#6030ea] hover:bg-[#4b22c2] text-white text-xs font-bold rounded-xl shadow-lg shadow-[#6030ea]/25 transition-all"
+            title="Products must be added under a shop. Navigate to Shops to add."
           >
-            <Plus className="w-4 h-4" />
-            <span>Add Master Product</span>
+            <Store className="w-4 h-4" />
+            <span>Add Product via Shop →</span>
           </button>
         </div>
       </div>
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Search */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -736,6 +760,22 @@ export const AdminProductsList = () => {
               placeholder="Search product by name..."
               className="w-full pl-9 pr-4 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea]"
             />
+          </div>
+
+          {/* Shop Filter */}
+          <div>
+            <select
+              value={selectedShopFilter}
+              onChange={(e) => setSelectedShopFilter(e.target.value)}
+              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#6030ea]/20 focus:border-[#6030ea] font-medium text-gray-700"
+            >
+              <option value="ALL">All Shops</option>
+              {shops.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Category Filter */}
@@ -836,15 +876,16 @@ export const AdminProductsList = () => {
           <div className="w-14 h-14 bg-purple-50 text-[#6030ea] rounded-2xl flex items-center justify-center mx-auto">
             <Package className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-bold text-gray-900">No Master Products Found</h3>
+          <h3 className="text-base font-bold text-gray-900">No Products Found</h3>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">
-            No products match the selected filters. Add a new product or reset your search criteria.
+            Products must belong to an active shop. Go to the Shops tab to add products to any store inventory.
           </p>
           <button
             onClick={handleOpenAdd}
-            className="px-4 py-2 bg-[#6030ea] text-white text-xs font-bold rounded-xl shadow-md"
+            className="px-5 py-2.5 bg-[#6030ea] text-white text-xs font-bold rounded-xl shadow-md hover:bg-[#4b22c2] transition-all inline-flex items-center space-x-2"
           >
-            Create Product Now
+            <Store className="w-4 h-4" />
+            <span>Go to Shops & Add Product</span>
           </button>
         </div>
       ) : viewMode === 'table' ? (
@@ -854,6 +895,7 @@ export const AdminProductsList = () => {
               <thead className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="py-3.5 px-4">Product</th>
+                  <th className="py-3.5 px-4">Assigned Shop</th>
                   <th className="py-3.5 px-4">Category & Subcategory</th>
                   <th className="py-3.5 px-4">Brand</th>
                   <th className="py-3.5 px-4">Variants (Allowed Units)</th>
@@ -866,6 +908,7 @@ export const AdminProductsList = () => {
                   const catName = prod.categoryId?.name || prod.categoryName || 'Unknown Category';
                   const subcatName = prod.subcategoryId?.name || prod.subcategoryName || 'Unknown Subcategory';
                   const brandName = prod.brandId?.name || prod.brandName || null;
+                  const shopName = prod.shopName || prod.shopId?.name || 'Assigned Shop';
                   const variants = prod.variants || [];
 
                   return (
@@ -885,6 +928,14 @@ export const AdminProductsList = () => {
                             <span className="text-[10px] text-gray-400 font-mono">{prod.slug}</span>
                           </div>
                         </div>
+                      </td>
+
+                      {/* Assigned Shop */}
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-purple-50 text-[#6030ea] border border-purple-100 font-bold text-[11px]">
+                          <Store className="w-3.5 h-3.5 text-[#6030ea]" />
+                          <span>{shopName}</span>
+                        </span>
                       </td>
 
                       {/* Category & Subcategory */}
@@ -1019,6 +1070,10 @@ export const AdminProductsList = () => {
                   )}
 
                   <div className="absolute top-3 left-3 flex flex-col gap-1">
+                    <span className="px-2.5 py-1 rounded-full bg-[#6030ea]/90 backdrop-blur-md text-white text-[10px] font-bold flex items-center space-x-1 shadow">
+                      <Store className="w-3 h-3 inline" />
+                      <span>{prod.shopName || prod.shopId?.name || 'Assigned Shop'}</span>
+                    </span>
                     <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-bold">
                       {catName}
                     </span>

@@ -17,17 +17,20 @@ import {
   AlertCircle,
   ThumbsUp,
   MessageSquare,
-  ShoppingCart
+  ShoppingCart,
+  Store,
 } from 'lucide-react';
-import { getProductById, getRelatedProducts } from '../../../data/productsData';
 import ApiClient from '../../../api/client';
+import { useCart } from '../../../context/CartContext';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { cn } from '../../../lib/utils';
 
 export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
-  const [product, setProduct] = useState(() => getProductById(productId));
-  const [selectedImage, setSelectedImage] = useState(product?.gallery?.[0] || product?.image);
+  const { addToCart } = useCart();
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('overview');
   const [isFavorite, setIsFavorite] = useState(false);
@@ -35,33 +38,36 @@ export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
 
-  // Sync whenever productId prop changes (Try DB API first, fallback to productsData)
+  // Fetch product from DB dynamically
   useEffect(() => {
     let isMounted = true;
+    setLoading(true);
 
     const loadProduct = async () => {
-      // Immediate sync with local fallback so UI doesn't flicker
-      const fallback = getProductById(productId);
-      if (fallback && isMounted) {
-        setProduct(fallback);
-        setSelectedImage(fallback.gallery?.[0] || fallback.image);
-        setRelatedProducts(getRelatedProducts(fallback.category, fallback.id));
-      }
-
-      // If productId could be an API ID or slug, fetch from backend
       try {
-        const res = await ApiClient.get(`/products/${productId}`);
-        if (isMounted && res.data) {
-          const dbItem = res.data;
+        let dbItem = null;
+        try {
+          const res = await ApiClient.get(`/products/${productId}`);
+          if (res?.data) dbItem = res.data;
+        } catch (e) {
+          const searchRes = await ApiClient.get('/products', { search: productId });
+          const items = Array.isArray(searchRes.data) ? searchRes.data : searchRes.data?.products || [];
+          dbItem = items.find((p) => p.slug === productId || p._id === productId) || items[0];
+        }
+
+        if (!isMounted) return;
+
+        if (dbItem) {
           const formatted = {
             id: dbItem._id,
             _id: dbItem._id,
             slug: dbItem.slug,
             name: dbItem.name,
-            category: (dbItem.categoryName || 'GENERAL').toUpperCase(),
-            categoryLabel: dbItem.categoryName || 'General',
-            subcategoryName: dbItem.subcategoryName || '',
-            brandName: dbItem.brandName || '',
+            category: (dbItem.categoryId?.name || dbItem.categoryName || 'GENERAL').toUpperCase(),
+            categoryLabel: dbItem.categoryId?.name || dbItem.categoryName || 'General',
+            subcategoryName: dbItem.subcategoryId?.name || dbItem.subcategoryName || '',
+            brandName: dbItem.brandId?.name || dbItem.brandName || '',
+            shopName: dbItem.shopName || dbItem.shopId?.name || 'Local Marketplace Hub',
             price: Number(dbItem.price) || 0,
             originalPrice: Number(dbItem.mrp) || Number(dbItem.price) * 1.25,
             discount: dbItem.mrp && dbItem.mrp > dbItem.price 
@@ -78,32 +84,58 @@ export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
             origin: 'Locally Sourced & Farm Certified',
             halalCertified: true,
             badge: 'Verified Fresh',
-            image: dbItem.image || fallback?.image,
-            gallery: fallback?.gallery || [dbItem.image],
-            description: dbItem.description || fallback?.description || 'Fresh, hygienically packed product delivered to your doorstep.',
-            highlights: fallback?.highlights || [
+            image: dbItem.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80',
+            gallery: [dbItem.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=500&auto=format&fit=crop&q=80'],
+            description: dbItem.description || 'Fresh, hygienically packed product delivered to your doorstep.',
+            highlights: [
               '100% Quality Guaranteed & Freshly Handpicked',
               'Sourced directly from verified partner producers',
               'Vacuum sealed in food-grade packaging'
             ],
-            nutrition: fallback?.nutrition || {
+            nutrition: {
               servingSize: '100g',
               calories: '150 kcal',
               protein: '15g',
               fats: '4g',
               carbs: '2g',
             },
-            storageGuide: fallback?.storageGuide || 'Store in cool, refrigerated conditions between 0°C to 4°C.',
-            cookingTips: fallback?.cookingTips || 'Wash thoroughly before cooking. Cook fresh within 2-3 days.',
-            reviews: fallback?.reviews || [],
+            storageGuide: 'Store in cool, refrigerated conditions between 0°C to 4°C.',
+            cookingTips: 'Wash thoroughly before cooking. Cook fresh within 2-3 days.',
+            reviews: [],
           };
 
           setProduct(formatted);
-          setSelectedImage(formatted.gallery?.[0] || formatted.image);
-          setRelatedProducts(getRelatedProducts(formatted.category, formatted.id));
+          setSelectedImage(formatted.image);
+
+          // Fetch related products dynamically
+          const catId = dbItem.categoryId?._id || dbItem.categoryId;
+          if (catId) {
+            try {
+              const relRes = await ApiClient.get('/products', { categoryId: catId });
+              const relList = Array.isArray(relRes.data) ? relRes.data : relRes.data?.products || [];
+              const filteredRel = relList
+                .filter((p) => p._id !== dbItem._id)
+                .slice(0, 4)
+                .map((p) => ({
+                  id: p._id,
+                  _id: p._id,
+                  name: p.name,
+                  category: (p.categoryId?.name || p.categoryName || 'GENERAL').toUpperCase(),
+                  price: Number(p.price) || 0,
+                  originalPrice: Number(p.mrp) || Number(p.price) * 1.25,
+                  image: p.image,
+                  shopName: p.shopName || p.shopId?.name || '',
+                }));
+              setRelatedProducts(filteredRel);
+            } catch (relErr) {
+              // ignore
+            }
+          }
         }
       } catch (err) {
-        // Fallback already in place
+        console.error('Failed to load product:', err);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
@@ -117,8 +149,11 @@ export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
   }, [productId]);
 
   const handleAddToCart = () => {
-    setAddedToast(`Added ${quantity} × ${product.name} to cart!`);
-    setTimeout(() => setAddedToast(null), 2500);
+    if (product) {
+      addToCart(product, quantity);
+      setAddedToast(`Added ${quantity} × ${product.name} to cart!`);
+      setTimeout(() => setAddedToast(null), 2500);
+    }
   };
 
   const handleShare = () => {
@@ -128,6 +163,32 @@ export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
       setTimeout(() => setCopiedLink(false), 2000);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF9] flex items-center justify-center p-8">
+        <div className="text-center space-y-4 max-w-sm">
+          <div className="w-12 h-12 border-4 border-[#FF7622] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-bold text-slate-700">Loading product details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF9] flex items-center justify-center p-8">
+        <div className="text-center space-y-4 max-w-md bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+          <AlertCircle className="w-12 h-12 text-[#FF7622] mx-auto" />
+          <h2 className="text-lg font-black text-slate-900">Product Not Found</h2>
+          <p className="text-xs text-slate-500">The product you are looking for does not exist or has been archived.</p>
+          <Button onClick={() => onNavigate?.('shop')} variant="default" size="sm">
+            Browse All Products
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const savingsAmount = (product.originalPrice - product.price).toFixed(2);
 
@@ -266,11 +327,19 @@ export const ProductDetailPage = ({ productId = 'prod-chk-2', onNavigate }) => {
           {/* RIGHT COLUMN: Product Specs, Actions, Quantity (7 cols) */}
           <div className="lg:col-span-7 space-y-6 text-left">
             
-            {/* Category & SKU */}
+            {/* Category, Shop & SKU */}
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-black uppercase tracking-wider text-[#FF7622] bg-orange-50 px-3 py-1 rounded-md">
-                {product.categoryLabel || product.category}
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-black uppercase tracking-wider text-[#FF7622] bg-orange-50 px-3 py-1 rounded-md">
+                  {product.categoryLabel || product.category}
+                </span>
+                {product.shopName && (
+                  <span className="inline-flex items-center space-x-1 text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-md border border-slate-200">
+                    <Store className="w-3.5 h-3.5 text-[#FF7622]" />
+                    <span>{product.shopName}</span>
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-slate-400 font-mono">
                 SKU: <strong className="text-slate-600">{product.sku}</strong>
               </span>

@@ -69,7 +69,7 @@ export const AdminRoutes = ({
       case 'units':
         return <UnitsList key={refreshKey} />;
       case 'products':
-        return <AdminProductsList key={refreshKey} />;
+        return <AdminProductsList key={refreshKey} onNavigate={handleAdminNavigate} />;
       case 'orders':
       case 'orders-pending':
         return <OrdersList key={refreshKey} defaultTab="pending" />;

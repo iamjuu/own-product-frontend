@@ -27,26 +27,29 @@ import { useAuth } from '../../../../context/AuthContext';
 import { Button } from '../../../../components/ui/button';
 import { Badge } from '../../../../components/ui/badge';
 import { Card } from '../../../../components/ui/card';
-import { cn } from '../../../../lib/utils';
 import ApiClient from '../../../../api/client';
-import { masterProducts } from '../../../../data/productsData';
+import { useCart } from '../../../../context/CartContext';
+import { cn } from '../../../../lib/utils';
 
 export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
   const { user, isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const [activeCategoryTab, setActiveCategoryTab] = useState('ALL PRODUCTS');
   const [addedItems, setAddedItems] = useState({});
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
-  const [allProducts, setAllProducts] = useState(masterProducts);
+  const [allProducts, setAllProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Live fetch from database API
   useEffect(() => {
     let isMounted = true;
+    setIsLoading(true);
     ApiClient.get('/products')
       .then((res) => {
         const productList = Array.isArray(res.data) ? res.data : (res.data?.products || []);
-        if (isMounted && productList.length > 0) {
+        if (isMounted) {
           const formatted = productList.map((p) => {
             let discount = null;
             if (p.mrp && p.mrp > p.price) {
@@ -54,6 +57,7 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
               discount = `-${diff}%`;
             }
             const rawCat = (p.categoryId?.name || p.categoryName || p.category || 'General').trim();
+            const shopName = p.shopName || p.shopId?.name || '';
             return {
               id: p._id,
               _id: p._id,
@@ -61,6 +65,7 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
               name: p.name,
               category: rawCat.toUpperCase(),
               categoryName: rawCat,
+              shopName: shopName,
               price: Number(p.price) || 0,
               originalPrice: Number(p.mrp) || Number(p.price) * 1.25,
               discount: discount || '-20%',
@@ -70,9 +75,13 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
             };
           });
           setAllProducts(formatted);
+          setIsLoading(false);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Failed to load storefront products:', err);
+        if (isMounted) setIsLoading(false);
+      });
 
     return () => {
       isMounted = false;
@@ -106,12 +115,14 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const handleAddToCart = (id, name, price, image) => {
-    setAddedItems((prev) => ({ ...prev, [id]: true }));
-    onAddToCart?.({ id, name, price, image });
-    setTimeout(() => {
-      setAddedItems((prev) => ({ ...prev, [id]: false }));
-    }, 2000);
+  const handleAddToCart = async (id, name, price, image, category = 'General') => {
+    const success = await addToCart({ _id: id, id, name, price, image, category }, 1);
+    if (success) {
+      setAddedItems((prev) => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+        setAddedItems((prev) => ({ ...prev, [id]: false }));
+      }, 2000);
+    }
   };
 
   const handleNewsletterSubmit = (e) => {
@@ -174,9 +185,19 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
     },
   ];
 
+  const normalizeCategory = (cat) => {
+    const c = (cat || '').toUpperCase();
+    if (c.includes('BEEF')) return 'BEEF';
+    if (c.includes('CHICKEN') || c.includes('POULTRY')) return 'CHICKEN';
+    if (c.includes('FISH') || c.includes('SEAFOOD')) return 'FISH';
+    if (c.includes('VEG')) return 'VEGETABLES';
+    if (c.includes('GROCERY') || c.includes('PANTRY') || c.includes('STAPLE')) return 'GROCERY';
+    return c;
+  };
+
   const filteredProducts = activeCategoryTab === 'ALL PRODUCTS'
     ? allProducts
-    : allProducts.filter((p) => p.category === activeCategoryTab);
+    : allProducts.filter((p) => normalizeCategory(p.category) === activeCategoryTab);
 
   return (
     <div className="w-full bg-[#FFFFFF] font-sans selection:bg-[#FF7622]/20">
@@ -478,7 +499,7 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
 
           {/* Category Filter Tabs */}
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8 border-b border-slate-200/80 pb-4">
-            {['ALL PRODUCTS', 'VEGETABLES', 'CHICKEN', 'FISH', 'BEEF', 'GROCERY'].map((tab) => (
+            {[ 'VEGETABLES', 'CHICKEN', 'FISH', 'BEEF', 'GROCERY'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveCategoryTab(tab)}
@@ -493,67 +514,92 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
             ))}
           </div>
 
-          {/* 10 Product Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 text-left">
-            {filteredProducts.map((item) => {
-              const defaultTags = {
-                VEGETABLES: ['Fresh Produce', 'Organic', 'Farm Direct'],
-                CHICKEN: ['100% Halal', 'Tender Cut', 'Antibiotic-Free'],
-                FISH: ['Wild Catch', 'Omega-3', 'De-scaled'],
-                BEEF: ['Halal Beef', 'Grass-Fed', 'Aged Cut'],
-                GROCERY: ['Pure Organic', 'Unrefined', 'Pantry Staple']
-              };
+          {/* Dynamic Product Cards Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <div key={n} className="bg-white rounded-[28px] p-4 border border-slate-200/90 shadow-2xs animate-pulse space-y-4">
+                  <div className="rounded-[22px] bg-slate-100 aspect-[4/3] w-full" />
+                  <div className="space-y-2">
+                    <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                    <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+                    <div className="h-3 bg-slate-100 rounded-md w-full" />
+                  </div>
+                  <div className="h-10 bg-slate-100 rounded-full w-full" />
+                </div>
+              ))}
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-16 bg-[#FFF9F5] rounded-3xl border border-orange-100/60 my-6">
+              <p className="text-sm font-bold text-slate-700">No products found in this category.</p>
+              <p className="text-xs text-slate-500 mt-1">Check back soon for fresh arrivals!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pt-4 text-left">
+              {filteredProducts.map((item) => {
+                const defaultTags = {
+                  VEGETABLES: ['Fresh Produce', 'Organic', 'Farm Direct'],
+                  CHICKEN: ['100% Halal', 'Tender Cut', 'Antibiotic-Free'],
+                  FISH: ['Wild Catch', 'Omega-3', 'De-scaled'],
+                  BEEF: ['Halal Beef', 'Grass-Fed', 'Aged Cut'],
+                  GROCERY: ['Pure Organic', 'Unrefined', 'Pantry Staple']
+                };
 
-              const tags = item.tags || defaultTags[item.category] || ['Fresh', 'Top Quality', '15m Delivery'];
+                const tags = item.tags || defaultTags[item.category] || ['Fresh', 'Top Quality', '15m Delivery'];
 
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-[28px] p-4 border border-slate-200/90 shadow-2xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
-                >
-                  {/* Top Image Frame with Category Tab Notch */}
-                  <div 
-                    onClick={() => onNavigate?.(`product/${item.id}`)}
-                    className="relative rounded-[22px] overflow-hidden bg-[#FBF9F7] aspect-[4/3] flex items-center justify-center cursor-pointer"
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-[28px] p-4 border border-slate-200/90 shadow-2xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between group"
                   >
-                    {/* Top-Left Category Tab */}
-                    <div className="absolute top-0 left-0 bg-white px-3.5 py-1.5 rounded-br-2xl text-[11px] font-bold text-slate-700 shadow-2xs z-10 capitalize tracking-tight">
-                      {item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1).toLowerCase() : 'Category'}
+                    {/* Top Image Frame with Category Tab Notch */}
+                    <div 
+                      onClick={() => onNavigate?.(`product/${item.id}`)}
+                      className="relative rounded-[22px] overflow-hidden bg-[#FBF9F7] aspect-[4/3] flex items-center justify-center cursor-pointer"
+                    >
+                      {/* Top-Left Category Tab */}
+                      <div className="absolute top-0 left-0 bg-white px-3.5 py-1.5 rounded-br-2xl text-[11px] font-bold text-slate-700 shadow-2xs z-10 capitalize tracking-tight flex items-center gap-1.5">
+                        <span>{item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1).toLowerCase() : 'Category'}</span>
+                        {item.shopName && (
+                          <span className="text-[10px] text-[#FF7622] font-semibold border-l border-slate-200 pl-1.5">
+                            {item.shopName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Top-Right Discount Badge */}
+                      {item.discount && (
+                        <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-xs text-white text-[10px] font-bold z-10">
+                          {item.discount}
+                        </span>
+                      )}
+
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
                     </div>
 
-                    {/* Top-Right Discount Badge */}
-                    {item.discount && (
-                      <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full bg-black/40 backdrop-blur-xs text-white text-[10px] font-bold z-10">
-                        {item.discount}
-                      </span>
-                    )}
+                    {/* Card Content */}
+                    <div className="pt-4 flex-1 flex flex-col justify-between text-left">
+                      <div>
+                        {/* Title & Price Badge Row */}
+                        <div className="flex items-start justify-between gap-2.5">
+                          <h4 
+                            onClick={() => onNavigate?.(`product/${item.id}`)}
+                            className="font-extrabold text-base text-[#181C2E] hover:text-[#FF7622] transition-colors cursor-pointer line-clamp-1 leading-snug flex-1"
+                            title={item.name}
+                          >
+                            {item.name}
+                          </h4>
 
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                  </div>
-
-                  {/* Card Content */}
-                  <div className="pt-4 flex-1 flex flex-col justify-between text-left">
-                    <div>
-                      {/* Title & Price Badge Row */}
-                      <div className="flex items-start justify-between gap-2.5">
-                        <h4 
-                          onClick={() => onNavigate?.(`product/${item.id}`)}
-                          className="font-extrabold text-base text-[#181C2E] hover:text-[#FF7622] transition-colors cursor-pointer line-clamp-1 leading-snug flex-1"
-                          title={item.name}
-                        >
-                          {item.name}
-                        </h4>
-
-                        {/* Price Pill Badge */}
-                        <div className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#FF7622] text-white font-extrabold text-xs shadow-2xs">
-                          ₹{Number(item.price).toFixed(2)}
+                          {/* Price Pill Badge */}
+                          <div className="shrink-0 px-3.5 py-1.5 rounded-full bg-[#FF7622] text-white font-extrabold text-xs shadow-2xs">
+                            ₹{Number(item.price).toFixed(2)}
+                          </div>
                         </div>
-                      </div>
 
                       {/* Multi-line Description */}
                       <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed font-normal mt-2">
@@ -603,6 +649,7 @@ export const DesktopStorefront = ({ onNavigate, onAddToCart }) => {
               );
             })}
           </div>
+        )}
 
         </div>
       </section>

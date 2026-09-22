@@ -88,7 +88,12 @@ export const LiveDeliveryTrackingModal = ({ isOpen, onClose, order, onStatusUpda
 
   useEffect(() => {
     fetchTracking();
-  }, [order]);
+    if (!isOpen) return;
+    const pollInterval = setInterval(() => {
+      fetchTracking();
+    }, 3000);
+    return () => clearInterval(pollInterval);
+  }, [order, isOpen]);
 
   // Live pulsing animation simulation moving the rider along the path
   useEffect(() => {
@@ -101,6 +106,7 @@ export const LiveDeliveryTrackingModal = ({ isOpen, onClose, order, onStatusUpda
     }, 2500);
     return () => clearInterval(interval);
   }, [isOpen]);
+
 
   const handleUpdateStatus = async (newStatus) => {
     setIsUpdatingStatus(true);

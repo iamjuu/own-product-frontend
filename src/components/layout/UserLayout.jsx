@@ -26,9 +26,13 @@ import {
   Tag
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
+import { CartDrawer } from '../cart/CartDrawer';
+import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 
 export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, children }) => {
   const { user, isAuthenticated, logout } = useAuth();
+  const { totalItemCount, cartOpen, setCartOpen, addToCart, toastMessage } = useCart();
   const [showProfileDrawer, setShowProfileDrawer] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showNotificationToast, setShowNotificationToast] = useState(false);
@@ -37,7 +41,6 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
   const [searchQuery, setSearchQuery] = useState('');
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [selectedStore, setSelectedStore] = useState('Indiranagar Express Hub');
-  const [cartCount, setCartCount] = useState(2);
 
   // Quick stores list for SELECT STORE modal
   const stores = [
@@ -68,11 +71,11 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
       );
 
   const handleTabClick = (tab) => {
-    if (tab === 'profile') {
+    if (tab === 'profile' || tab === 'orders') {
       if (!isAuthenticated) {
         onRouteChange?.('login');
       } else {
-        onRouteChange?.('profile');
+        onRouteChange?.(tab);
       }
       return;
     }
@@ -149,63 +152,131 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
               </span>
             </div>
 
-            {/* Center Nav Links */}
-            <nav className="flex items-center space-x-8 text-xs font-bold text-[#1F2229]">
-              <button 
-                onClick={() => onRouteChange?.('home')}
-                className={`transition-colors flex items-center space-x-1 ${
-                  currentRoute === 'home' || currentRoute === 'dashboard'
-                    ? 'text-[#FF7622] font-black'
-                    : 'hover:text-[#FF7622]'
-                }`}
-              >
-                <span>Home</span>
-              </button>
+            {/* Center: Nav Links OR Clean Integrated Top Search Bar */}
+            {showSearchOverlay ? (
+              <div className="flex-1 max-w-xl mx-8 relative animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center bg-[#F4F6F8] rounded-2xl px-4 py-2 border border-[#FF7622] shadow-sm focus-within:bg-white transition-all">
+                  <Search className="w-4 h-4 text-[#FF7622] shrink-0 mr-3" />
+                  <input
+                    type="text"
+                    autoFocus
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search fresh vegetables, chicken, fish, beef, or groceries..."
+                    className="w-full text-xs font-semibold text-[#181C2E] bg-transparent placeholder:text-slate-400 focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="text-slate-400 hover:text-slate-600 mr-2 text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowSearchOverlay(false);
+                      setSearchQuery('');
+                    }}
+                    className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors"
+                    title="Close Search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-              <button 
-                onClick={() => onRouteChange?.('about')}
-                className={`transition-colors flex items-center space-x-1 ${
-                  currentRoute === 'about'
-                    ? 'text-[#FF7622] font-black'
-                    : 'hover:text-[#FF7622]'
-                }`}
-              >
-                <span>About</span>
-              </button>
+                {/* Clean Dropdown Floating Results under the Top Bar */}
+                {searchQuery.trim() !== '' && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 p-3 z-50 max-h-80 overflow-y-auto space-y-1.5 animate-in slide-in-from-top-2 duration-150">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
+                      Search Results ({filteredItems.length})
+                    </div>
+                    {filteredItems.length > 0 ? (
+                      filteredItems.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            setShowSearchOverlay(false);
+                            setSearchQuery('');
+                            onRouteChange?.(`product/${item.id}`);
+                          }}
+                          className="p-2.5 rounded-xl hover:bg-orange-50 flex items-center justify-between cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center space-x-2.5">
+                            <span className="px-2 py-0.5 rounded-md bg-orange-100 text-[#FF7622] text-[10px] font-black">
+                              {item.category}
+                            </span>
+                            <span className="text-xs font-bold text-[#181C2E]">{item.name}</span>
+                          </div>
+                          <span className="text-xs font-black text-[#FF7622]">{item.price}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-4 text-center text-xs text-slate-400">
+                        No items found matching "{searchQuery}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <nav className="flex items-center space-x-8 text-xs font-bold text-[#1F2229]">
+                <button 
+                  onClick={() => onRouteChange?.('home')}
+                  className={`transition-colors flex items-center space-x-1 ${
+                    currentRoute === 'home' || currentRoute === 'dashboard'
+                      ? 'text-[#FF7622] font-black'
+                      : 'hover:text-[#FF7622]'
+                  }`}
+                >
+                  <span>Home</span>
+                </button>
 
-              <button 
-                onClick={() => onRouteChange?.('shop')}
-                className={`transition-colors flex items-center space-x-1 ${
-                  currentRoute === 'shop'
-                    ? 'text-[#FF7622] font-black'
-                    : 'hover:text-[#FF7622]'
-                }`}
-              >
-                <span>Shop</span>
-              </button>
+                <button 
+                  onClick={() => onRouteChange?.('about')}
+                  className={`transition-colors flex items-center space-x-1 ${
+                    currentRoute === 'about'
+                      ? 'text-[#FF7622] font-black'
+                      : 'hover:text-[#FF7622]'
+                  }`}
+                >
+                  <span>About</span>
+                </button>
 
-              <button 
-                onClick={() => onRouteChange?.('news')}
-                className={`transition-colors flex items-center space-x-1 ${
-                  currentRoute === 'news'
-                    ? 'text-[#FF7622] font-black'
-                    : 'hover:text-[#FF7622]'
-                }`}
-              >
-                <span>News</span>
-              </button>
+                <button 
+                  onClick={() => onRouteChange?.('shop')}
+                  className={`transition-colors flex items-center space-x-1 ${
+                    currentRoute === 'shop'
+                      ? 'text-[#FF7622] font-black'
+                      : 'hover:text-[#FF7622]'
+                  }`}
+                >
+                  <span>Shop</span>
+                </button>
 
-              <button 
-                onClick={() => onRouteChange?.('contact')}
-                className={`transition-colors flex items-center space-x-1 ${
-                  currentRoute === 'contact'
-                    ? 'text-[#FF7622] font-black'
-                    : 'hover:text-[#FF7622]'
-                }`}
-              >
-                <span>Contact</span>
-              </button>
-            </nav>
+                <button 
+                  onClick={() => onRouteChange?.('news')}
+                  className={`transition-colors flex items-center space-x-1 ${
+                    currentRoute === 'news'
+                      ? 'text-[#FF7622] font-black'
+                      : 'hover:text-[#FF7622]'
+                  }`}
+                >
+                  <span>News</span>
+                </button>
+
+                <button 
+                  onClick={() => onRouteChange?.('contact')}
+                  className={`transition-colors flex items-center space-x-1 ${
+                    currentRoute === 'contact'
+                      ? 'text-[#FF7622] font-black'
+                      : 'hover:text-[#FF7622]'
+                  }`}
+                >
+                  <span>Contact</span>
+                </button>
+              </nav>
+            )}
 
             {/* Right CTA Button & Quick Icons */}
             <div className="flex items-center space-x-5">
@@ -217,13 +288,15 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
                 <span>SELECT STORE</span>
               </button>
 
-              <button 
-                onClick={() => setShowSearchOverlay(true)}
-                className="p-2 text-slate-600 hover:text-[#FF7622] transition-colors" 
-                title="Search Products"
-              >
-                <Search className="w-4 h-4" />
-              </button>
+              {!showSearchOverlay && (
+                <button 
+                  onClick={() => setShowSearchOverlay(true)}
+                  className="p-2 text-slate-600 hover:text-[#FF7622] transition-colors" 
+                  title="Search Products"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+              )}
 
               <button 
                 onClick={() => {
@@ -245,14 +318,16 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
               </button>
 
               <button 
-                onClick={() => onRouteChange?.('orders')}
+                onClick={() => setCartOpen(true)}
                 className="p-2 text-slate-600 hover:text-[#FF7622] transition-colors relative"
-                title="Cart & Tracking"
+                title="View Shopping Bag"
               >
                 <ShoppingBag className="w-4 h-4" />
-                <span className="w-4 h-4 rounded-full bg-[#FF7622] text-white font-black text-[9px] flex items-center justify-center absolute -top-0.5 -right-0.5 border border-white">
-                  {cartCount}
-                </span>
+                {totalItemCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#FF7622] text-white font-black text-[9px] flex items-center justify-center absolute -top-0.5 -right-0.5 border border-white">
+                    {totalItemCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -307,14 +382,16 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
             </button>
 
             <button
-              onClick={() => onRouteChange?.('orders')}
+              onClick={() => setCartOpen(true)}
               className="w-11 h-11 rounded-full bg-[#181C2E] flex items-center justify-center text-white relative hover:bg-[#252a42] active:scale-95 transition-all shadow-sm"
               title="Shopping Cart"
             >
               <ShoppingBag className="w-5 h-5 text-white" />
-              <span className="w-5 h-5 rounded-full bg-[#FF7622] text-white font-black text-[10px] flex items-center justify-center absolute -top-1 -right-1 border-2 border-white shadow-xs">
-                {cartCount}
-              </span>
+              {totalItemCount > 0 && (
+                <span className="w-5 h-5 rounded-full bg-[#FF7622] text-white font-black text-[10px] flex items-center justify-center absolute -top-1 -right-1 border-2 border-white shadow-xs">
+                  {totalItemCount}
+                </span>
+              )}
             </button>
           </div>
         </header>
@@ -530,112 +607,7 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
       </div>
 
 
-      {/* =============================================================
-          MODAL: INTERACTIVE SEARCH BAR OVERLAY
-         ============================================================= */}
-      {showSearchOverlay && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-start justify-center pt-16 sm:pt-24 px-4">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
-            {/* Search Input Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center space-x-3 flex-1 mr-4">
-                <Search className="w-5 h-5 text-[#FF7622]" />
-                <input
-                  type="text"
-                  autoFocus
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search fresh vegetables, chicken, fish, beef, or groceries..."
-                  className="w-full text-sm font-semibold text-[#181C2E] placeholder:text-slate-400 focus:outline-none"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  setShowSearchOverlay(false);
-                  setSearchQuery('');
-                }}
-                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Quick Category Chips */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Quick Category Filter
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {['All', 'Vegetables', 'Chicken', 'Fish', 'Beef', 'Grocery'].map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setSearchQuery(cat === 'All' ? '' : cat)}
-                    className="px-3 py-1.5 rounded-xl bg-[#F0F5FA] hover:bg-[#FFF4EC] hover:text-[#FF7622] text-xs font-bold text-slate-700 transition-colors"
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Results Section */}
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
-              {filteredItems.length > 0 ? (
-                filteredItems.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      setShowSearchOverlay(false);
-                      setSearchQuery('');
-                      onRouteChange?.(`product/${item.id}`);
-                    }}
-                    className="p-3 rounded-2xl bg-[#FBFBFB] hover:bg-orange-50 border border-slate-100 hover:border-[#FF7622]/40 flex items-center justify-between cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-xl bg-orange-100 text-[#FF7622] flex items-center justify-center font-black text-xs">
-                        {item.category[0]}
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-[#181C2E]">{item.name}</p>
-                        <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-0.5">
-                          <span className="px-1.5 py-0.5 rounded-md bg-white border border-slate-200 text-[#FF7622] font-semibold">{item.category}</span>
-                          <span>{item.tag}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-black text-[#FF7622] block">{item.price}</span>
-                      <span className="text-[10px] text-slate-400 hover:underline">View item →</span>
-                    </div>
-                  </div>
-                ))
-              ) : searchQuery.trim() !== '' ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No products found matching "<strong className="text-slate-600">{searchQuery}</strong>". Try another keyword.
-                </div>
-              ) : (
-                <div className="py-6 text-center text-xs text-slate-400">
-                  Start typing to see instant suggestions for organic vegetables, halal meat, seafood, and essentials.
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Footer */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span>Press <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-600 font-mono">ESC</kbd> to close</span>
-              <button 
-                onClick={() => {
-                  setShowSearchOverlay(false);
-                  onRouteChange?.('shop');
-                }}
-                className="font-bold text-[#FF7622] hover:underline"
-              >
-                Go to Full Shop Catalog →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* =============================================================
           MODAL: SELECT STORE (Delivery Hub Picker)
@@ -719,9 +691,9 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
             </p>
             <div className="space-y-2">
               {[
-                { name: 'Spicy Chicken Curry Cut (500g)', price: '₹160', time: '12 min' },
-                { name: 'Fresh Roma Tomatoes (1kg)', price: '₹48', time: '10 min' },
-                { name: 'Pure Forest Honey (500g)', price: '₹290', time: '8 min' }
+                { name: 'Spicy Chicken Curry Cut (500g)', price: 160, category: 'Chicken', image: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=400&auto=format&fit=crop&q=80', time: '12 min' },
+                { name: 'Fresh Roma Tomatoes (1kg)', price: 48, category: 'Vegetables', image: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&auto=format&fit=crop&q=80', time: '10 min' },
+                { name: 'Pure Forest Honey (500g)', price: 290, category: 'Grocery', image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=400&auto=format&fit=crop&q=80', time: '8 min' }
               ].map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-[#F0F5FA] hover:bg-orange-50 transition-colors">
                   <div>
@@ -731,18 +703,48 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
                   <button 
                     onClick={() => {
                       setShowQuickAddModal(false);
-                      setCartCount(prev => prev + 1);
-                      setShowNotificationToast(true);
-                      setTimeout(() => setShowNotificationToast(false), 3000);
+                      addToCart(item, 1);
                     }}
                     className="px-3 py-1.5 rounded-xl bg-[#FF7622] text-white text-xs font-black shadow-xs hover:bg-[#E56314]"
                   >
-                    Add {item.price}
+                    Add ₹{item.price}
                   </button>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Cart Slide-over Drawer */}
+      <CartDrawer 
+        isOpen={cartOpen} 
+        onClose={() => setCartOpen(false)} 
+        onNavigate={onRouteChange} 
+      />
+
+      {/* Floating shadcn Alert Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 max-w-sm w-full animate-in fade-in slide-in-from-top-3 duration-200">
+          <Alert variant={toastMessage.type === 'error' ? 'destructive' : 'success'} className="shadow-2xl border bg-white">
+            <Sparkles className="w-4 h-4 text-[#FF7622]" />
+            <div className="flex items-start justify-between">
+              <div>
+                <AlertTitle className="text-xs font-black">{toastMessage.title}</AlertTitle>
+                <AlertDescription className="text-[11px] text-slate-600 font-medium">
+                  {toastMessage.description}
+                </AlertDescription>
+              </div>
+              {toastMessage.type === 'error' && (
+                <button
+                  onClick={() => onRouteChange?.('login')}
+                  className="shrink-0 ml-3 px-2.5 py-1 rounded-lg bg-[#FF7622] hover:bg-[#E56314] text-white font-bold text-[10px] transition-colors"
+                >
+                  Sign In
+                </button>
+              )}
+            </div>
+          </Alert>
         </div>
       )}
 

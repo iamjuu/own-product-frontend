@@ -215,7 +215,7 @@ export const Login = ({ onBackToHome }) => {
     setIsLoading(false);
   };
 
-  // OTP typing
+  // OTP typing (Only fills inputs, user clicks button to submit)
   const handleDigitChange = (index, value) => {
     setLocalError(null);
     const cleanVal = value.replace(/\D/g, '');
@@ -236,9 +236,6 @@ export const Login = ({ onBackToHome }) => {
       setOtpDigits(updated);
       const nextFocus = Math.min(chars.length, 5);
       inputRefs[nextFocus]?.current?.focus();
-      if (chars.length === 6) {
-        handleVerifyOtp(updated.join(''));
-      }
       return;
     }
 
@@ -248,12 +245,15 @@ export const Login = ({ onBackToHome }) => {
 
     if (index < 5) {
       inputRefs[index + 1]?.current?.focus();
-    } else if (updated.join('').length === 6) {
-      handleVerifyOtp(updated.join(''));
     }
   };
 
   const handleDigitKeyDown = (index, e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleVerifyOtp();
+      return;
+    }
     if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
       inputRefs[index - 1]?.current?.focus();
     }
@@ -513,7 +513,33 @@ export const Login = ({ onBackToHome }) => {
                     <Sparkles className="w-3.5 h-3.5" />
                     Quick One-Click Test Logins:
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('abdul@rahmanrestaurant.com');
+                        setPassword('ShopOwner123!');
+                        setLocalError(null);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-orange-200 hover:border-[#FF7622] text-left transition-all group shadow-2xs hover:shadow-sm"
+                    >
+                      <span className="block font-black text-[#181C2E] group-hover:text-[#FF7622] text-xs">👨‍🍳 Restaurant Owner</span>
+                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5 truncate">abdul@rahmanrestaurant.com</span>
+                      <span className="block text-[#FF7622] font-mono text-[10px] font-bold">pass: ShopOwner123!</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail('rider@marketplace.com');
+                        setPassword('Rider123!');
+                        setLocalError(null);
+                      }}
+                      className="p-2.5 rounded-xl bg-white border border-orange-200 hover:border-[#FF7622] text-left transition-all group shadow-2xs hover:shadow-sm"
+                    >
+                      <span className="block font-black text-[#181C2E] group-hover:text-[#FF7622] text-xs">🛵 Delivery Partner</span>
+                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5 truncate">rider@marketplace.com</span>
+                      <span className="block text-[#FF7622] font-mono text-[10px] font-bold">pass: Rider123!</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -524,20 +550,7 @@ export const Login = ({ onBackToHome }) => {
                       className="p-2.5 rounded-xl bg-white border border-orange-200 hover:border-[#FF7622] text-left transition-all group shadow-2xs hover:shadow-sm"
                     >
                       <span className="block font-black text-[#181C2E] group-hover:text-[#FF7622] text-xs">👑 Master Admin</span>
-                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5">master@gmail.com</span>
-                      <span className="block text-[#FF7622] font-mono text-[10px] font-bold">pass: 123</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('admin@gmail.com');
-                        setPassword('123');
-                        setLocalError(null);
-                      }}
-                      className="p-2.5 rounded-xl bg-white border border-orange-200 hover:border-[#FF7622] text-left transition-all group shadow-2xs hover:shadow-sm"
-                    >
-                      <span className="block font-black text-[#181C2E] group-hover:text-[#FF7622] text-xs">⚙️ Operations Admin</span>
-                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5">admin@gmail.com</span>
+                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5 truncate">master@gmail.com</span>
                       <span className="block text-[#FF7622] font-mono text-[10px] font-bold">pass: 123</span>
                     </button>
                     <button
@@ -550,7 +563,7 @@ export const Login = ({ onBackToHome }) => {
                       className="p-2.5 rounded-xl bg-white border border-orange-200 hover:border-[#FF7622] text-left transition-all group shadow-2xs hover:shadow-sm"
                     >
                       <span className="block font-black text-[#181C2E] group-hover:text-[#FF7622] text-xs">🛍️ Customer User</span>
-                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5">user@marketplace</span>
+                      <span className="block text-slate-500 font-mono text-[10px] mt-0.5 truncate">user@marketplace.com</span>
                       <span className="block text-[#FF7622] font-mono text-[10px] font-bold">pass: User123!</span>
                     </button>
                   </div>
@@ -658,7 +671,13 @@ export const Login = ({ onBackToHome }) => {
                 DESKTOP VIEW: OTP VERIFICATION
                ------------------------------------------------------------- */}
             {activeTab === 'verification' && (
-              <div className="space-y-5">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleVerifyOtp();
+                }} 
+                className="space-y-5"
+              >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-700 uppercase tracking-wider text-[11px]">
@@ -713,11 +732,12 @@ export const Login = ({ onBackToHome }) => {
                       onClick={() => {
                         const chars = currentDebugOtp.split('').slice(0, 6);
                         setOtpDigits(chars);
-                        handleVerifyOtp(currentDebugOtp);
+                        setLocalError(null);
+                        inputRefs[5]?.current?.focus();
                       }}
                       className="w-full p-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs text-[#FF7622] font-bold text-center cursor-pointer transition-colors shadow-2xs"
                     >
-                      ⚡ One-Click Verify Code: <span className="font-mono text-sm tracking-widest underline ml-1 text-[#181C2E] font-black">{currentDebugOtp}</span>
+                      ⚡ One-Click Fill Code: <span className="font-mono text-sm tracking-widest underline ml-1 text-[#181C2E] font-black">{currentDebugOtp}</span>
                     </button>
                   )}
 
@@ -727,14 +747,13 @@ export const Login = ({ onBackToHome }) => {
                 </div>
 
                 <button
-                  type="button"
+                  type="submit"
                   disabled={isLoading || otpDigits.join('').length < 6}
-                  onClick={() => handleVerifyOtp()}
                   className="w-full py-4 rounded-xl bg-[#FF7622] hover:bg-[#E56314] active:scale-[0.99] text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-[#FF7622]/25 transition-all disabled:opacity-50"
                 >
                   {isLoading ? 'VERIFYING...' : 'CONFIRM & SIGN IN'}
                 </button>
-              </div>
+              </form>
             )}
 
             {/* -------------------------------------------------------------
@@ -966,6 +985,37 @@ export const Login = ({ onBackToHome }) => {
                         SIGN UP
                       </button>
                     </div>
+
+                    {/* Mobile Quick Test Logins */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                        Quick Demo Accounts:
+                      </p>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmail('abdul@rahmanrestaurant.com');
+                            setPassword('ShopOwner123!');
+                            setLocalError(null);
+                          }}
+                          className="p-2 rounded-xl bg-orange-50 border border-orange-200 text-left text-[11px] font-bold text-[#181C2E]"
+                        >
+                          👨‍🍳 Restaurant Owner
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmail('rider@marketplace.com');
+                            setPassword('Rider123!');
+                            setLocalError(null);
+                          }}
+                          className="p-2 rounded-xl bg-orange-50 border border-orange-200 text-left text-[11px] font-bold text-[#181C2E]"
+                        >
+                          🛵 Delivery Partner
+                        </button>
+                      </div>
+                    </div>
                   </form>
                 )}
 
@@ -1051,7 +1101,13 @@ export const Login = ({ onBackToHome }) => {
 
                 {/* Mobile View: Verification OTP */}
                 {activeTab === 'verification' && (
-                  <div className="space-y-5">
+                  <form 
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleVerifyOtp();
+                    }} 
+                    className="space-y-5"
+                  >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span className="font-bold text-[#32343E] uppercase tracking-wider text-[11px]">
@@ -1106,11 +1162,12 @@ export const Login = ({ onBackToHome }) => {
                           onClick={() => {
                             const chars = currentDebugOtp.split('').slice(0, 6);
                             setOtpDigits(chars);
-                            handleVerifyOtp(currentDebugOtp);
+                            setLocalError(null);
+                            inputRefs[5]?.current?.focus();
                           }}
                           className="w-full p-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-xs text-[#FF7622] font-bold text-center cursor-pointer transition-colors"
                         >
-                          ⚡ Tap to Auto-Fill Code: <span className="font-mono text-sm tracking-widest underline ml-1 text-[#181C2E] font-black">{currentDebugOtp}</span>
+                          ⚡ Tap to Fill Code: <span className="font-mono text-sm tracking-widest underline ml-1 text-[#181C2E] font-black">{currentDebugOtp}</span>
                         </button>
                       )}
 
@@ -1120,14 +1177,13 @@ export const Login = ({ onBackToHome }) => {
                     </div>
 
                     <button
-                      type="button"
+                      type="submit"
                       disabled={isLoading || otpDigits.join('').length < 6}
-                      onClick={() => handleVerifyOtp()}
                       className="w-full py-4 rounded-xl bg-[#FF7622] text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-[#FF7622]/30"
                     >
                       {isLoading ? 'VERIFYING...' : 'VERIFY'}
                     </button>
-                  </div>
+                  </form>
                 )}
               </div>
 

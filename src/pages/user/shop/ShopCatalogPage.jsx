@@ -27,16 +27,17 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import ApiClient from '@/api/client';
-import { masterProducts } from '@/data/productsData';
+import { useCart } from '@/context/CartContext';
 
 export const ShopCatalogPage = ({ onNavigate, onAddToCart }) => {
+  const { addToCart } = useCart();
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popular');
   const [maxPrice, setMaxPrice] = useState(1000);
   const [addedItems, setAddedItems] = useState({});
   const [loading, setLoading] = useState(true);
-  const [catalog, setCatalog] = useState(masterProducts);
+  const [catalog, setCatalog] = useState([]);
   const [dbCategories, setDbCategories] = useState([]);
 
   // Fetch live products & categories from Database API
@@ -71,6 +72,7 @@ export const ShopCatalogPage = ({ onNavigate, onAddToCart }) => {
               categoryName: p.categoryName || 'General',
               subcategoryName: p.subcategoryName || '',
               brandName: p.brandName || '',
+              shopName: p.shopName || p.shopId?.name || '',
               price: Number(p.price) || 0,
               originalPrice: Number(p.mrp) || Number(p.price) * 1.25,
               discount: discount || '-20%',
@@ -101,12 +103,14 @@ export const ShopCatalogPage = ({ onNavigate, onAddToCart }) => {
     };
   }, []);
 
-  const handleAddToCart = (id, name, price, image) => {
-    setAddedItems((prev) => ({ ...prev, [id]: true }));
-    onAddToCart?.({ id, name, price, image });
-    setTimeout(() => {
-      setAddedItems((prev) => ({ ...prev, [id]: false }));
-    }, 2000);
+  const handleAddToCart = async (id, name, price, image, category = 'General') => {
+    const success = await addToCart({ _id: id, id, name, price, image, category }, 1);
+    if (success) {
+      setAddedItems((prev) => ({ ...prev, [id]: true }));
+      setTimeout(() => {
+        setAddedItems((prev) => ({ ...prev, [id]: false }));
+      }, 2000);
+    }
   };
 
   // Build dynamic category list with item counts from current catalog
@@ -298,7 +302,21 @@ export const ShopCatalogPage = ({ onNavigate, onAddToCart }) => {
             </div>
 
             {/* Product Cards */}
-            {sorted.length === 0 ? (
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
+                  <div key={n} className="bg-white rounded-[28px] p-4 border border-slate-200/90 shadow-2xs animate-pulse space-y-4">
+                    <div className="rounded-[22px] bg-slate-100 aspect-[4/3] w-full" />
+                    <div className="space-y-2">
+                      <div className="h-4 bg-slate-100 rounded-md w-3/4" />
+                      <div className="h-3 bg-slate-100 rounded-md w-1/2" />
+                      <div className="h-3 bg-slate-100 rounded-md w-full" />
+                    </div>
+                    <div className="h-10 bg-slate-100 rounded-full w-full" />
+                  </div>
+                ))}
+              </div>
+            ) : sorted.length === 0 ? (
               <div className="bg-white p-12 rounded-3xl text-center space-y-3 border border-slate-200">
                 <p className="text-sm font-bold text-slate-600">No products match your current filters.</p>
                 <Button
@@ -349,8 +367,13 @@ export const ShopCatalogPage = ({ onNavigate, onAddToCart }) => {
                         className="relative rounded-[22px] overflow-hidden bg-[#FBF9F7] aspect-[4/3] flex items-center justify-center cursor-pointer"
                       >
                         {/* Top-Left Category Tab */}
-                        <div className="absolute top-0 left-0 bg-white px-4 py-1.5 rounded-br-2xl text-xs font-semibold text-slate-700 shadow-2xs z-10 capitalize tracking-tight">
-                          {item.categoryName || item.category || 'Category'}
+                        <div className="absolute top-0 left-0 bg-white px-3.5 py-1.5 rounded-br-2xl text-xs font-semibold text-slate-700 shadow-2xs z-10 capitalize tracking-tight flex items-center gap-1.5">
+                          <span>{item.categoryName || item.category || 'Category'}</span>
+                          {item.shopName && (
+                            <span className="text-[10px] text-[#FF7622] font-semibold border-l border-slate-200 pl-1.5">
+                              {item.shopName}
+                            </span>
+                          )}
                         </div>
 
                         {/* Top-Right Discount Badge */}
