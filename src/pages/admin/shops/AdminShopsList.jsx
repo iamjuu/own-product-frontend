@@ -8,6 +8,7 @@ import {
   Clock,
   MapPin,
   Eye,
+  EyeOff,
   Key,
   Copy,
   Check,
@@ -78,6 +79,16 @@ export const AdminShopsList = () => {
 
   // Clipboard
   const [copiedId, setCopiedId] = useState(null);
+
+  // Shop Owner Password Visibility Toggle (Hidden by default)
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  const togglePasswordVisibility = (shopId) => {
+    setVisiblePasswords((prev) => ({
+      ...prev,
+      [shopId]: !prev[shopId],
+    }));
+  };
 
   // 1. Fetch Shops
   const fetchShops = async () => {
@@ -704,9 +715,44 @@ export const AdminShopsList = () => {
 
                     <div className="flex items-center justify-between text-[#181829]">
                       <span className="text-[#8a87a6] font-medium">Owner:</span>
-                      <span className="font-mono text-[11px] text-[#6339f4] truncate max-w-[170px]">
+                      <span className="font-mono text-[11px] text-[#6339f4] truncate max-w-[170px]" title={shop.ownerEmail}>
                         {shop.ownerEmail}
                       </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[#181829] pt-1 border-t border-slate-200/60">
+                      <span className="text-[#8a87a6] font-medium flex items-center space-x-1">
+                        <Key className="w-3 h-3 text-[#6339f4]" />
+                        <span>Password:</span>
+                      </span>
+                      <div className="flex items-center space-x-1.5">
+                        <span
+                          className={`font-mono text-[11px] px-1.5 py-0.5 rounded transition-all ${
+                            visiblePasswords[shop._id]
+                              ? 'bg-purple-100 text-[#6339f4] font-bold select-all'
+                              : 'text-slate-400 font-bold tracking-widest'
+                          }`}
+                        >
+                          {visiblePasswords[shop._id]
+                            ? (shop.ownerPassword || 'ShopOwner123!')
+                            : '••••••••'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePasswordVisibility(shop._id);
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-[#6339f4] hover:bg-white transition-colors"
+                          title={visiblePasswords[shop._id] ? 'Hide password' : 'Show password'}
+                        >
+                          {visiblePasswords[shop._id] ? (
+                            <EyeOff className="w-3.5 h-3.5 text-[#6339f4]" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -737,6 +783,7 @@ export const AdminShopsList = () => {
                       <th className="py-3.5 px-4 font-bold">Shop</th>
                       <th className="py-3.5 px-4 font-bold">Hours (Open - Close)</th>
                       <th className="py-3.5 px-4 font-bold">Owner Account</th>
+                      <th className="py-3.5 px-4 font-bold">Password</th>
                       <th className="py-3.5 px-4 font-bold">Status</th>
                       <th className="py-3.5 px-4 font-bold text-right">Actions</th>
                     </tr>
@@ -760,6 +807,36 @@ export const AdminShopsList = () => {
                         </td>
                         <td className="py-3 px-4 font-mono text-[11px] text-[#6339f4]">
                           {shop.ownerEmail}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-1.5">
+                            <span
+                              className={`font-mono text-[11px] px-1.5 py-0.5 rounded transition-all ${
+                                visiblePasswords[shop._id]
+                                  ? 'bg-purple-100 text-[#6339f4] font-bold select-all'
+                                  : 'text-slate-400 font-bold tracking-widest'
+                              }`}
+                            >
+                              {visiblePasswords[shop._id]
+                                ? (shop.ownerPassword || 'ShopOwner123!')
+                                : '••••••••'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePasswordVisibility(shop._id);
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-[#6339f4] hover:bg-slate-100 transition-colors"
+                              title={visiblePasswords[shop._id] ? 'Hide password' : 'Show password'}
+                            >
+                              {visiblePasswords[shop._id] ? (
+                                <EyeOff className="w-3.5 h-3.5 text-[#6339f4]" />
+                              ) : (
+                                <Eye className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <span
