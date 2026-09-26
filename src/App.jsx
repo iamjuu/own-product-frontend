@@ -41,6 +41,7 @@ import { AdminsList } from './pages/master_admin/admins/AdminsList';
 import { NotificationsList } from './pages/master_admin/notifications/NotificationsList';
 import { AppearanceSettings } from './pages/master_admin/appearance/AppearanceSettings';
 import { MarketplaceSettings } from './pages/master_admin/settings/MarketplaceSettings';
+import { InitialPermissionsModal } from './components/auth/InitialPermissionsModal';
 
 import { ShieldAlert } from 'lucide-react';
 
@@ -77,6 +78,8 @@ const AdminRouter = () => {
 
   const [currentRoute, setCurrentRoute] = useState(getRouteFromUrl);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showPermissionsPrompt, setShowPermissionsPrompt] = useState(false);
+  const isSignupUser = typeof window !== 'undefined' && sessionStorage.getItem('just_signed_up') === 'true';
 
   useEffect(() => {
     const handlePopState = () => {
@@ -85,6 +88,16 @@ const AdminRouter = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const isPending = typeof window !== 'undefined' && sessionStorage.getItem('pending_permissions_setup') === 'true';
+      const isConfigured = typeof window !== 'undefined' && localStorage.getItem('app_permissions_configured') === 'true';
+      if (isPending || !isConfigured) {
+        setShowPermissionsPrompt(true);
+      }
+    }
+  }, [isAuthenticated]);
 
   const navigateTo = (route, params) => {
     let targetRoute = route;
@@ -192,178 +205,196 @@ const AdminRouter = () => {
     }
   };
 
-  // 1. If NOT authenticated:
-  // - If user accessed '/login', show Login screen
-  // - If user accessed '/admin' or '/admin/*', require login
-  // - Otherwise, show storefront pages wrapped in UserLayout!
-  if (!isAuthenticated) {
-    if (currentRoute === 'login' || currentRoute === 'admin' || currentRoute.startsWith('admin/') || currentRoute === 'profile' || currentRoute === 'orders') {
-      return <Login onBackToHome={() => navigateTo('home')} />;
+  const renderCurrentPortal = () => {
+    // 1. If NOT authenticated:
+    // - If user accessed '/login', show Login screen
+    // - If user accessed '/admin' or '/admin/*', require login
+    // - Otherwise, show storefront pages wrapped in UserLayout!
+    if (!isAuthenticated) {
+      if (currentRoute === 'login' || currentRoute === 'admin' || currentRoute.startsWith('admin/') || currentRoute === 'profile' || currentRoute === 'orders') {
+        return <Login onBackToHome={() => navigateTo('home')} />;
+      }
+
+      return (
+        <UserLayout
+          currentRoute={currentRoute}
+          onRouteChange={navigateTo}
+          onRefresh={handleRefresh}
+        >
+          {renderUserContent()}
+        </UserLayout>
+      );
     }
 
-    return (
-      <UserLayout
-        currentRoute={currentRoute}
-        onRouteChange={navigateTo}
-        onRefresh={handleRefresh}
-      >
-        {renderUserContent()}
-      </UserLayout>
-    );
-  }
-
-  // 2. USER / CUSTOMER SIDE
-  if (isUserType === 'user' || user?.role === 'CUSTOMER') {
-    return (
-      <UserLayout
-        currentRoute={currentRoute}
-        onRouteChange={navigateTo}
-        onRefresh={handleRefresh}
-      >
-        {renderUserContent()}
-      </UserLayout>
-    );
-  }
-
-  // 3. DELIVERY BOY / PARTNER SIDE
-  if (isUserType === 'delivery_boy' || user?.role === 'DELIVERY_PARTNER') {
-    return (
-      <DeliveryBoyLayout
-        currentRoute={currentRoute}
-        onRouteChange={navigateTo}
-        onRefresh={handleRefresh}
-      >
-        <DeliveryBoyDashboard key={refreshKey} onNavigate={navigateTo} />
-      </DeliveryBoyLayout>
-    );
-  }
-
-  // 4. RESTAURANT / SHOP OWNER SIDE
-  if (isUserType === 'shop_owner' || user?.role === 'SHOP_OWNER') {
-    const renderShopOwnerContent = () => {
-      switch (currentRoute) {
-        case 'dashboard':
-          return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
-        case 'orders':
-          return <ShopOwnerOrders key={refreshKey} onNavigate={setCurrentRoute} />;
-        case 'menu':
-          return <ShopOwnerMenu key={refreshKey} onNavigate={setCurrentRoute} />;
-        default:
-          return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
-      }
-    };
-
-    return (
-      <ShopOwnerLayout
-        currentRoute={currentRoute}
-        onRouteChange={setCurrentRoute}
-        onRefresh={handleRefresh}
-      >
-        {renderShopOwnerContent()}
-      </ShopOwnerLayout>
-    );
-  }
-
-  // 5. OPERATIONS ADMIN SIDE (Dedicated paths under /admin/...)
-  if (isUserType === 'admin' || user?.role === 'ADMIN') {
-    return (
-      <AdminRoutes
-        currentRoute={currentRoute}
-        onNavigate={navigateTo}
-        onRefresh={handleRefresh}
-        refreshKey={refreshKey}
-        renderUserContent={renderUserContent}
-      />
-    );
-  }
-
-  // 6. MASTER ADMIN SIDE
-  if (isUserType === 'master' || user?.role === 'MASTER_ADMIN') {
-    const renderMasterContent = () => {
-      switch (currentRoute) {
-        case 'dashboard':
-          return <MasterDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
-        case 'orders':
-        case 'orders-pending':
-          return <OrdersList key={refreshKey} defaultTab="pending" />;
-        case 'orders-in-progress':
-          return <OrdersList key={refreshKey} defaultTab="in-progress" />;
-        case 'orders-completed':
-          return <OrdersList key={refreshKey} defaultTab="completed" />;
-        case 'shops':
-          return <ShopsList key={refreshKey} />;
-        case 'delivery':
-        case 'delivery-pending':
-          return <DeliveryPartnersList key={refreshKey} defaultTab="pending" />;
-        case 'delivery-verified':
-          return <DeliveryPartnersList key={refreshKey} defaultTab="verified" />;
-        case 'customers':
-          return <CustomersList key={refreshKey} />;
-        case 'analytics':
-          return <AnalyticsDashboard key={refreshKey} />;
-        case 'activity-logs':
-          return <ActivityLogsList key={refreshKey} />;
-        case 'features':
-          return <FeaturesList key={refreshKey} />;
-        case 'admins':
-          return <AdminsList key={refreshKey} />;
-        case 'notifications':
-          return <NotificationsList key={refreshKey} />;
-        case 'appearance':
-          return <AppearanceSettings key={refreshKey} />;
-        case 'settings':
-          return <MarketplaceSettings key={refreshKey} />;
-        case 'preview-user':
-          return (
-            <div className="py-2">
-              <UserLayout currentRoute="home" onRouteChange={navigateTo}>
-                {renderUserContent()}
-              </UserLayout>
-            </div>
-          );
-        case 'preview-delivery':
-          return (
-            <div className="py-2">
-              <DeliveryBoyLayout>
-                <DeliveryBoyDashboard />
-              </DeliveryBoyLayout>
-            </div>
-          );
-        default:
-          return <MasterDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
-      }
-    };
-
-    return (
-      <MasterAdminLayout
-        currentRoute={currentRoute}
-        onRouteChange={setCurrentRoute}
-        onRefresh={handleRefresh}
-      >
-        {renderMasterContent()}
-      </MasterAdminLayout>
-    );
-  }
-
-  // Fallback
-  return (
-    <div className="min-h-screen bg-[#F8F9FD] flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center max-w-md space-y-4 shadow-xl">
-        <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF7622] mx-auto flex items-center justify-center">
-          <ShieldAlert className="w-6 h-6" />
-        </div>
-        <h2 className="text-lg font-bold text-[#181C2E]">Unknown User Role</h2>
-        <p className="text-xs text-[#646982] leading-relaxed">
-          Your authenticated role is <code className="text-[#FF7622] font-bold">{user?.role}</code>.
-        </p>
-        <button
-          onClick={logout}
-          className="px-4 py-2 rounded-xl bg-[#FF7622] hover:bg-[#E56314] text-xs font-bold text-white transition-all shadow-md"
+    // 2. USER / CUSTOMER SIDE
+    if (isUserType === 'user' || user?.role === 'CUSTOMER') {
+      return (
+        <UserLayout
+          currentRoute={currentRoute}
+          onRouteChange={navigateTo}
+          onRefresh={handleRefresh}
         >
-          Sign In Again
-        </button>
+          {renderUserContent()}
+        </UserLayout>
+      );
+    }
+
+    // 3. DELIVERY BOY / PARTNER SIDE
+    if (isUserType === 'delivery_boy' || user?.role === 'DELIVERY_PARTNER') {
+      return (
+        <DeliveryBoyLayout
+          currentRoute={currentRoute}
+          onRouteChange={navigateTo}
+          onRefresh={handleRefresh}
+        >
+          <DeliveryBoyDashboard key={refreshKey} onNavigate={navigateTo} />
+        </DeliveryBoyLayout>
+      );
+    }
+
+    // 4. RESTAURANT / SHOP OWNER SIDE
+    if (isUserType === 'shop_owner' || user?.role === 'SHOP_OWNER') {
+      const renderShopOwnerContent = () => {
+        switch (currentRoute) {
+          case 'dashboard':
+            return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+          case 'orders':
+            return <ShopOwnerOrders key={refreshKey} onNavigate={setCurrentRoute} />;
+          case 'menu':
+            return <ShopOwnerMenu key={refreshKey} onNavigate={setCurrentRoute} />;
+          default:
+            return <ShopOwnerDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+        }
+      };
+
+      return (
+        <ShopOwnerLayout
+          currentRoute={currentRoute}
+          onRouteChange={setCurrentRoute}
+          onRefresh={handleRefresh}
+        >
+          {renderShopOwnerContent()}
+        </ShopOwnerLayout>
+      );
+    }
+
+    // 5. OPERATIONS ADMIN SIDE (Dedicated paths under /admin/...)
+    if (isUserType === 'admin' || user?.role === 'ADMIN') {
+      return (
+        <AdminRoutes
+          currentRoute={currentRoute}
+          onNavigate={navigateTo}
+          onRefresh={handleRefresh}
+          refreshKey={refreshKey}
+          renderUserContent={renderUserContent}
+        />
+      );
+    }
+
+    // 6. MASTER ADMIN SIDE
+    if (isUserType === 'master' || user?.role === 'MASTER_ADMIN') {
+      const renderMasterContent = () => {
+        switch (currentRoute) {
+          case 'dashboard':
+            return <MasterDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+          case 'orders':
+          case 'orders-pending':
+            return <OrdersList key={refreshKey} defaultTab="pending" />;
+          case 'orders-in-progress':
+            return <OrdersList key={refreshKey} defaultTab="in-progress" />;
+          case 'orders-completed':
+            return <OrdersList key={refreshKey} defaultTab="completed" />;
+          case 'shops':
+            return <ShopsList key={refreshKey} />;
+          case 'delivery':
+          case 'delivery-pending':
+            return <DeliveryPartnersList key={refreshKey} defaultTab="pending" />;
+          case 'delivery-verified':
+            return <DeliveryPartnersList key={refreshKey} defaultTab="verified" />;
+          case 'customers':
+            return <CustomersList key={refreshKey} />;
+          case 'analytics':
+            return <AnalyticsDashboard key={refreshKey} />;
+          case 'activity-logs':
+            return <ActivityLogsList key={refreshKey} />;
+          case 'features':
+            return <FeaturesList key={refreshKey} />;
+          case 'admins':
+            return <AdminsList key={refreshKey} />;
+          case 'notifications':
+            return <NotificationsList key={refreshKey} />;
+          case 'appearance':
+            return <AppearanceSettings key={refreshKey} />;
+          case 'settings':
+            return <MarketplaceSettings key={refreshKey} />;
+          case 'preview-user':
+            return (
+              <div className="py-2">
+                <UserLayout currentRoute="home" onRouteChange={navigateTo}>
+                  {renderUserContent()}
+                </UserLayout>
+              </div>
+            );
+          case 'preview-delivery':
+            return (
+              <div className="py-2">
+                <DeliveryBoyLayout>
+                  <DeliveryBoyDashboard />
+                </DeliveryBoyLayout>
+              </div>
+            );
+          default:
+            return <MasterDashboard key={refreshKey} onNavigate={setCurrentRoute} />;
+        }
+      };
+
+      return (
+        <MasterAdminLayout
+          currentRoute={currentRoute}
+          onRouteChange={setCurrentRoute}
+          onRefresh={handleRefresh}
+        >
+          {renderMasterContent()}
+        </MasterAdminLayout>
+      );
+    }
+
+    // Fallback
+    return (
+      <div className="min-h-screen bg-[#F8F9FD] flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center max-w-md space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-2xl bg-orange-50 text-[#FF7622] mx-auto flex items-center justify-center">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="text-lg font-bold text-[#181C2E]">Unknown User Role</h2>
+          <p className="text-xs text-[#646982] leading-relaxed">
+            Your authenticated role is <code className="text-[#FF7622] font-bold">{user?.role}</code>.
+          </p>
+          <button
+            onClick={logout}
+            className="px-4 py-2 rounded-xl bg-[#FF7622] hover:bg-[#E56314] text-xs font-bold text-white transition-all shadow-md"
+          >
+            Sign In Again
+          </button>
+        </div>
       </div>
-    </div>
+    );
+  };
+
+  return (
+    <>
+      {renderCurrentPortal()}
+      <InitialPermissionsModal
+        isOpen={showPermissionsPrompt}
+        onClose={() => {
+          setShowPermissionsPrompt(false);
+          sessionStorage.removeItem('pending_permissions_setup');
+          sessionStorage.removeItem('just_signed_up');
+        }}
+        isSignup={isSignupUser}
+        userRole={user?.role}
+      />
+    </>
   );
 };
 

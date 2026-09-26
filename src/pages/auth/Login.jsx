@@ -173,6 +173,8 @@ export const Login = ({ onBackToHome }) => {
 
     setIsLoading(true);
     const signupEmail = email.trim();
+    sessionStorage.setItem('pending_permissions_setup', 'true');
+    sessionStorage.setItem('just_signed_up', 'true');
     const result = await register(name.trim(), signupEmail, password);
 
     if (result.requiresOtp) {
@@ -190,6 +192,8 @@ export const Login = ({ onBackToHome }) => {
       setResendCooldown(60);
     } else if (!result.success) {
       setLocalError(result.error || 'Failed to create account.');
+      sessionStorage.removeItem('pending_permissions_setup');
+      sessionStorage.removeItem('just_signed_up');
     }
 
     setIsLoading(false);
@@ -209,6 +213,8 @@ export const Login = ({ onBackToHome }) => {
     const result = await verifyOtp(otpEmail || email, fullCode);
     if (result.success) {
       sessionStorage.removeItem('pending_otp_email');
+      // Mark permissions setup required from beginning once signup is verified
+      sessionStorage.setItem('pending_permissions_setup', 'true');
     } else {
       setLocalError('Invalid OTP');
     }

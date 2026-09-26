@@ -1,18 +1,18 @@
-# Hyperlocal Multi-Vendor Marketplace — Platform Features Documentation
+# Hyperlocal Multi-Vendor Marketplace — Platform Features Documentation (`FEATURES.md`)
 
-A modern, high-performance **Hyperlocal Multi-Vendor Marketplace** architecture built with a separated **Master Admin (Executive Controller)** and **Operations Admin (Dispatch, Merchant & Catalog Controller)**.
+A modern, high-performance **Hyperlocal Multi-Vendor Marketplace** architecture built with a separated **Master Admin (Executive Controller)**, **Operations Admin (Dispatch, Merchant & Catalog Controller)**, **Shop Owner (Merchant Fulfillment)**, **Delivery Partner (Rider Dispatch)**, and **Customer (Consumer Shopping Portal)**.
 
 ---
 
 ## 🏛️ System Roles & Architecture
 
-| Role | Responsibility | Access Level |
-| :--- | :--- | :--- |
-| **MASTER_ADMIN** | Platform owner, financial audit, feature flags, global settings & admin management | Complete platform governance & policy control |
-| **ADMIN** (Operations) | Daily operations, shop registration, catalog management, dispatch oversight, disputes | Operational control & merchant enablement |
-| **SHOP_OWNER** | Shop inventory, order fulfillment, menu/catalog, revenue settlement | Store-level operations |
-| **DELIVERY_PARTNER**| Field delivery, rider acceptance, route navigation, earnings wallet | Rider mobile/web dispatch |
-| **CUSTOMER** | Location-based browsing, cart, checkout, live tracking, order history | Consumer shopping portal |
+| Role | `isUser` Identifier | Responsibility | Access Level |
+| :--- | :--- | :--- | :--- |
+| **MASTER_ADMIN** | `master` | Platform owner, financial audit, feature flags, global settings & admin management | Complete platform governance & policy control |
+| **ADMIN** (Operations) | `admin` | Daily operations, shop registration, 5-tier catalog taxonomy, dispatch oversight, disputes | Operational control & merchant enablement (`/admin/*`) |
+| **SHOP_OWNER** | `shop_owner` | Shop inventory, order fulfillment, menu/catalog, revenue settlement | Store-level operations |
+| **DELIVERY_PARTNER**| `delivery_boy` | Field delivery, rider acceptance, route navigation, earnings wallet | Rider mobile/web dispatch |
+| **CUSTOMER** | `user` | Location-based browsing, cart, checkout, live tracking, order history | Consumer shopping portal |
 
 ---
 
@@ -57,18 +57,19 @@ The Master Admin portal is designed for high-level executive oversight, platform
 
 ### 1.8 Dynamic Feature Flags (Toggle without Code Deployment)
 - Real-time marketplace toggles:
-  - `INSTANT_DELIVERY`: Enable/disable 15-30 min hyper-fast delivery mode.
-  - `SURGE_PRICING`: Peak hour delivery surge algorithms.
-  - `CASH_ON_DELIVERY`: Enable/disable COD payment methods.
-  - `WALLET_PAYMENTS`: In-app customer and rider wallet features.
-  - `CUSTOMER_REVIEWS`: Public ratings and product reviews.
-  - `PROMO_CAMPAIGNS`: Discount codes and banner campaigns.
+  - `alternative_procurement`: Enables procurement fallback routing for out-of-stock items.
+  - `customer_wallet`: Allows customers to maintain wallet balance and receive instant refunds.
+  - `delivery_tracking`: Provides real-time interactive mapping and ETA status tracking.
+  - `live_gps`: Broadcasts live geolocation coordinates of riders.
+  - `campaigns`: Platform-wide and seasonal promotional discount campaigns.
+  - `shop_owner_portal`: Dedicated operational portal for merchants.
+  - `realtime_notifications`: Push & in-app status update alerts.
 
 ### 1.9 Global Marketplace Settings
 - Commission percentage (default platform cut per order).
 - Maximum delivery radius (in km).
-- Minimum order value threshold.
-- Auto-assign nearest delivery partner policy.
+- Base delivery fee & Free delivery threshold (₹499).
+- Surge pricing multiplier and emergency closure controls.
 - Standard operating hours.
 
 ### 1.10 Operations Admin Account Management
@@ -79,7 +80,7 @@ The Master Admin portal is designed for high-level executive oversight, platform
 - Create platform-wide announcements targeting: **All Users**, **Customers Only**, **Merchants Only**, or **Delivery Partners Only**.
 
 ### 1.12 Platform Appearance Customizer
-- Customize Platform Branding Name.
+- Customize Platform Branding Name and Tagline.
 - Set primary and secondary theme palette colors (HSL / HEX).
 - Dark Mode / Light Mode defaults.
 
@@ -87,7 +88,7 @@ The Master Admin portal is designed for high-level executive oversight, platform
 
 ## 🛡️ 2. Operations Admin Portal Features
 
-The Operations Admin portal is tailored for day-to-day marketplace execution, merchant onboarding, catalog structuring, and dispatch resolution.
+The Operations Admin portal is tailored for day-to-day marketplace execution, merchant onboarding, complete 5-tier catalog structuring, and dispatch resolution.
 
 ### 2.1 Operations Control Center
 - Live dispatch metrics: Active pipeline orders, Online riders, Pending KYC queues, and Unresolved dispute claims.
@@ -101,58 +102,79 @@ The Operations Admin portal is tailored for day-to-day marketplace execution, me
   - **Automatic Credential Engine**:
     - Generates merchant email: `<slug>@marketplace.com`
     - Generates secure initial password: `<ShopName>@2026`
-    - Automatically creates `User` account with `role: SHOP_OWNER`.
+    - Automatically creates `User` account with `role: SHOP_OWNER` and `isUser: 'shop_owner'`.
     - Automatically creates `Shop` record linked to the owner.
   - **1-Click Copy Credentials**: Instant copy button to share credentials directly with the shop owner.
 
-### 2.3 Product Category Catalog (`Categories` Tab)
-- Create and organize product taxonomies:
-  - Category Name, Slug (auto-derived), Description, Custom Icon Picker (Apple, Milk, Coffee, Utensils, Cake, Fish, Sparkles, Boxes, etc.), Image Banner.
-  - Active/Inactive visibility toggle.
-  - **Preset Category Loader**: 1-click populate popular retail categories (*Beverages, Chocolates, Baby Care, Cleaning, Pet Care, Stationery*).
-  - Edit and Delete category management.
+### 2.3 Master Catalog Management (5-Tier Hierarchy)
+1. **Measurement Units Tab (`Units`)**:
+   - Manage standard measurement units (`kg`, `g`, `litre`, `ml`, `piece`, `pack`, `box`, `dozen`) with symbol uniqueness, description, and display ordering.
+2. **Category & Subcategory Taxonomies (`Categories` Tab)**:
+   - Root categories with Lucide icons, descriptions, and banners.
+   - Subcategories linked to parent categories with explicit `allowedUnitIds` configurations.
+3. **Brand Management (`Brands` Tab)**:
+   - Registry for FMCG, farm, and producer brands.
+4. **Master Products & Variants (`Products` Tab)**:
+   - Create centralized master products with global descriptions, images, and MRP.
+   - Configure packaging variants with specific unit/quantity SKUs (e.g., *1 kg*, *500 g*, *1 L*).
+5. **Shop Product Listings (Multi-Vendor Inventory)**:
+   - Map master product variants to individual shops.
+   - Set shop-specific selling prices ($\le \text{MRP}$), real-time stock levels, and active availability switches.
 
-### 2.4 Brand Management (`Brands` Tab)
-- **Category-Linked Brand Taxonomy**:
-  - Each brand is strictly associated with a parent product Category (*e.g., Amul $\rightarrow$ Dairy, Lay's $\rightarrow$ Snacks, Tata Sampann $\rightarrow$ Grocery, Himalaya $\rightarrow$ Wellness*).
-  - Filter brands by category dropdown.
-  - **Preset Brand Loader**: 1-click add top FMCG brands (*Amul, Nestlé, Britannia, Tata Sampann, Aashirvaad, Lay's, Coca-Cola, Organic Tattva, Himalaya*).
-  - Full CRUD: Add Brand, Edit Brand, Delete Brand, and Active toggle.
+### 2.4 Order Management & Pipeline Overrides
+- Real-time order pipeline tracking across **Pending**, **In-Progress**, and **Completed** states.
+- Update order progress (*Placed $\rightarrow$ Accepted $\rightarrow$ Preparing $\rightarrow$ Ready for Pickup $\rightarrow$ Out for Delivery $\rightarrow$ Delivered*).
+- Cancel orders with logged cancellation reasons.
+- **Live Delivery Tracking & Rider Dispatch**:
+  - Visual milestone journey: *Confirmed $\rightarrow$ Prepared $\rightarrow$ Picked Up $\rightarrow$ En Route $\rightarrow$ Delivered*.
+  - Rider assignment telemetry, vehicle details, contact triggers, and estimated arrival times.
 
-### 2.5 Shop Product Catalog Management (Shop $\rightarrow$ Category $\rightarrow$ Brand $\rightarrow$ Product)
-- Inside any Shop, clicking **"Manage Products"** opens the dedicated store inventory manager:
-  - Telemetry: Total Listed Products, In-Stock Items, Category Coverage.
-  - **"+ Add Product to Shop" Modal**:
-    - **Step 1: Choose Category** (e.g., Dairy & Bakery, Fruits & Vegetables, Grocery).
-    - **Step 2: Choose Brand** (dynamically filtered by the chosen category, with option for Store Brand / Generic).
-    - **Step 3: Product Details**:
-      - Product Name (e.g., *Amul Taaza Fresh Toned Milk*)
-      - Selling Price (₹) & MRP (₹)
-      - Unit / Package Size (e.g., *500 ml*, *1 kg*, *1 pc*, *1 box*)
-      - Stock Quantity & In-Stock availability switch
-      - Product Image URL & Description
-  - In-place Stock Availability toggle (*In Stock* vs *Out of Stock*).
-  - Edit Product modal & Delete Product confirmation.
-
-### 2.6 Order Management & Pipeline Overrides
-- Real-time order pipeline tracking:
-  - Filter by tabs: **Pending**, **In-Progress**, and **Completed**.
-  - Update order progress (*Placed $\rightarrow$ Accepted $\rightarrow$ Preparing $\rightarrow$ Ready for Pickup $\rightarrow$ Out for Delivery $\rightarrow$ Delivered*).
-  - Cancel orders with cancellation reasons.
-
-### 2.7 Order Dispute Resolution
+### 2.5 Order Dispute Resolution
 - Review flagged orders and customer dispute claims.
 - Execute resolution actions:
   - **REFUND**: Marks payment status as `REFUNDED`, cancels order, and logs refund metadata.
   - **REJECT**: Dismisses claim and records dispute rationale.
 
-### 2.8 Customer Support & Communication
-- Browse customer directory, contact info, and spend history for phone support.
-- Broadcast announcements and notifications.
+---
+
+## 🛒 3. Customer Storefront & Shopping Features
+
+- **Initial Permissions Onboarding**: Mandatory 3-pillar permissions modal at signup/first login granting GPS location, browser push notifications, and pre-unlocking Web Audio API context for zero-friction alerts.
+- **Dynamic Header Location Bar**: Displays detected street and city address with a live GPS badge; supports 1-tap manual re-detection anywhere in the app.
+- **Hyperlocal Discovery**: Explore categories, featured groceries, fresh meats, seafood, farm vegetables, and daily staples.
+- **Interactive Product Catalog**: High-res product cards, dynamic variant selectors, discount percentage badges, and instant "Add to Cart".
+- **Cart & Dynamic Pricing**: Real-time quantity adjustment, automated subtotal calculations, and free delivery thresholds ($\ge ₹499$).
+- **Live Order Tracking**: Interactive Leaflet map powered by free OpenStreetMap raster tiles showing real-time rider GPS movement.
+- **User Account Portal**: Saved delivery address book, order history with live status updates, and digital wallet balance.
+- **Editorial & Information Pages**: About Us, Contact & Support, and Marketplace News/Blog.
 
 ---
 
-## 🔒 3. Security, Authentication & Role-Based Access Control (RBAC)
+## 🧑‍🍳 4. Shop Owner (Merchant) Portal Features
+
+- **Store Dashboard**: Daily revenue telemetry, pending orders counter, and average fulfillment time.
+- **Live Kitchen / Store Orders**: Accept incoming orders, advance status from *Preparing* to *Ready for Pickup*.
+- **Menu & Catalog Controls**: Instant toggle for in-stock/out-of-stock items, price overrides, and direct product creation.
+- **GPS Coordinates Persistence**: Shop locations capture exact latitude/longitude coordinates via Nominatim reverse geocoding.
+
+---
+
+## 🛵 5. Delivery Partner (Rider) Portal Features
+
+- **Rider Duty Switch**: Toggle `Online` / `Offline` duty status to start receiving assignments.
+- **Continuous Siren & Tri-Point Distance Telemetry**:
+  - High-urgency audio synthesizer alarm sounds continuously until unassigned ticket is Accepted or Rejected.
+  - Computes and displays exact Haversine distances on incoming tickets: *~X km to Kitchen*, *~Y km to Customer*, and *~Z km Total Journey*.
+- **Two-Stage Street Navigation**:
+  - **Stage 1 (To Store)**: Highlights route polyline from rider GPS to restaurant, with 1-tap Google Maps directions to the kitchen.
+  - **Stage Transition**: Prominent button **"📍 I Have Reached Restaurant (Show Customer Directions)"** advances order to `PICKED_UP`.
+  - **Stage 2 (To Customer)**: Automatically refocuses map camera bounds and switches route polyline to customer doorstep, activating **"🛵 Start Transit to Customer Doorstep"** and requiring 4-digit doorstep security OTP.
+- **Real-Time GPS Broadcaster**: Streams live device telemetry or simulated test rides directly to the customer radar via WebSockets.
+- **Earnings Wallet**: Lifetime earnings, completed deliveries counter, and performance ratings.
+
+---
+
+## 🔒 6. Security, Authentication & Role-Based Access Control (RBAC)
 
 - **Two-Factor OTP Verification (2FA)**:
   - Admin login enforces a 2-step verification flow:
@@ -162,22 +184,15 @@ The Operations Admin portal is tailored for day-to-day marketplace execution, me
 - **Role Isolation & Guards**:
   - `requireRole(ROLES.MASTER_ADMIN)` guards master control endpoints.
   - `requireRole(ROLES.ADMIN, ROLES.MASTER_ADMIN)` guards operational endpoints.
-  - Non-admin users are prevented from administrative routes.
+  - Non-admin users are strictly isolated to their respective portals.
 - **Audit Logging**: All database updates, status changes, credentials generation, and disputes are recorded with timestamps, actor IDs, and IP addresses.
 
 ---
 
-## 💻 4. Technology Stack
+## 💻 7. Technology Stack Summary
 
-- **Frontend**:
-  - React 18, Vite
-  - Vanilla CSS + Tailwind utility tokens
-  - Lucide React Iconography
-  - Custom responsive layout with Glassmorphism & Modern Theme Design System
-- **Backend**:
-  - Node.js & Express.js REST API
-  - MongoDB with Mongoose ORM
-  - JWT (JSON Web Tokens) & Bcrypt password hashing
-  - Supertest & Jest (23 automated test cases)
-- **Database Collections**:
-  - `User`, `Shop`, `Category`, `Brand`, `Product`, `Order`, `DeliveryPartner`, `Customer`, `ActivityLog`, `FeatureFlag`, `AppearanceSetting`, `MarketplaceSetting`, `Notification`
+- **Frontend**: React 18, Vite, Vanilla CSS + Tailwind utility tokens, Leaflet & OpenStreetMap, Web Audio API, Socket.IO Client, Lucide Icons, Radix UI Primitives, Context API.
+- **Backend**: Node.js & Express.js REST API, Socket.IO WebSockets, MongoDB with Mongoose ORM (18 Models), JWT & Bcryptjs.
+- **Testing**: Supertest & Jest (comprehensive automated test suites with in-memory DB).
+- **Database Collections (18 Models)**:
+  - `User`, `Shop`, `Unit`, `Category`, `Subcategory`, `Brand`, `Product`, `ProductVariant`, `ShopProduct`, `Cart`, `Order`, `DeliveryPartner`, `Customer`, `ActivityLog`, `FeatureFlag`, `AppearanceSetting`, `MarketplaceSetting`, `Notification`.

@@ -52,6 +52,53 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
   const [activeTrackingOrder, setActiveTrackingOrder] = useState(null);
   const [userOrders, setUserOrders] = useState([]);
 
+  // Customer Location State synced from signup/permissions onboarding
+  const [currentLocationLabel, setCurrentLocationLabel] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('user_coords') || '{}');
+      return saved.address || 'Bengaluru, Karnataka';
+    } catch {
+      return 'Bengaluru, Karnataka';
+    }
+  });
+
+  useEffect(() => {
+    const handleLocationUpdated = (e) => {
+      if (e.detail?.address) {
+        setCurrentLocationLabel(e.detail.address);
+      }
+    };
+    window.addEventListener('app_location_updated', handleLocationUpdated);
+    return () => window.removeEventListener('app_location_updated', handleLocationUpdated);
+  }, []);
+
+  const handleDetectLocationManually = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          let displayAddr = `${lat}, ${lng}`;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+            const data = await res.json();
+            if (data && data.address) {
+              const road = data.address.road || data.address.suburb || data.display_name?.split(',')[0] || '';
+              const city = data.address.city || data.address.town || data.address.state_district || 'Bengaluru';
+              displayAddr = road ? `${road}, ${city}` : city;
+            }
+          } catch (e) {}
+          setCurrentLocationLabel(displayAddr);
+          localStorage.setItem('user_coords', JSON.stringify({ lat, lng, address: displayAddr }));
+        },
+        (err) => {
+          alert(`Location permission required: ${err.message}`);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  };
+
   // Fetch Customer Orders for Header Status
   const fetchCustomerOrders = () => {
     if (isAuthenticated && user) {
@@ -195,15 +242,22 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
         {/* Top Utility Bar */}
         <div className="bg-[#FBFBFB] border-b border-slate-200/60 text-[11px] text-slate-500 font-semibold py-2 px-8">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            {/* Left: Address & Email */}
-            <div className="flex items-center space-x-6">
+            {/* Left: Address & Location & Email */}
+            <div className="flex items-center space-x-4">
+              <button
+                type="button"
+                onClick={handleDetectLocationManually}
+                className="flex items-center space-x-1.5 text-slate-700 hover:text-[#FF7622] transition-colors bg-white px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs group"
+                title="Click to detect your current location"
+              >
+                <MapPin className="w-3.5 h-3.5 text-[#FF7622] group-hover:scale-110 transition-transform" />
+                <span className="font-bold text-[11px] max-w-[240px] truncate">{currentLocationLabel}</span>
+                <span className="text-[9px] bg-orange-100 text-[#FF7622] px-1.5 py-0.5 rounded font-black">GPS</span>
+              </button>
+
               <div className="flex items-center space-x-1.5 text-slate-600">
-                <MapPin className="w-3.5 h-3.5 text-[#FF7622]" />
+                <Clock className="w-3.5 h-3.5 text-[#FF7622]" />
                 <span>Express Delivery: <strong>15-20 Mins</strong></span>
-              </div>
-              <div className="flex items-center space-x-1.5 hover:text-[#FF7622] cursor-pointer transition-colors">
-                <Mail className="w-3.5 h-3.5 text-[#FF7622]" />
-                <span>support@localrun.com</span>
               </div>
             </div>
 
@@ -473,10 +527,15 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
             )}
           </button>
 
-          {/* Center: Brand Delivery Badge */}
-          <div className="flex flex-col items-center px-2">
-            <span className="text-[10px] font-black tracking-wider text-[#FF7622] uppercase">
-              DELIVERY IN
+          {/* Center: Brand Delivery Badge & Location */}
+          <div
+            onClick={handleDetectLocationManually}
+            className="flex flex-col items-center px-2 cursor-pointer active:scale-95 transition-transform"
+            title="Tap to detect GPS location"
+          >
+            <span className="text-[9px] font-black tracking-wider text-[#FF7622] uppercase flex items-center space-x-1 max-w-[140px] truncate">
+              <MapPin className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{currentLocationLabel}</span>
             </span>
             <div className="flex items-center space-x-1 text-xs font-black text-[#181C2E]">
               <Clock className="w-3 h-3 text-[#FF7622]" />

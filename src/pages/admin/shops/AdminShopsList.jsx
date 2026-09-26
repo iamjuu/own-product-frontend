@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   ExternalLink,
   ShieldCheck,
+  Navigation,
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
 import { Modal, ConfirmDialog } from '../../../components/common/Modal';
@@ -171,6 +172,8 @@ export const AdminShopsList = () => {
     return `${clean || 'Shop'}@2026`;
   };
 
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
   // Open Add Shop
   const handleOpenAddShop = () => {
     setNewShopForm({
@@ -179,10 +182,74 @@ export const AdminShopsList = () => {
       closingTime: '10:00 PM',
       phone: '+91 98000 12345',
       category: 'Retail & Supermarket',
+      address: {
+        street: '',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+        pincode: '560001',
+        lat: 12.9716,
+        lng: 77.5946,
+      },
     });
     setShopFormError('');
     setCreatedShopResult(null);
     setIsAddShopModalOpen(true);
+  };
+
+  const handleDetectCurrentLocation = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Geolocation is not supported by your browser or device.');
+      return;
+    }
+
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+
+        setNewShopForm((prev) => ({
+          ...prev,
+          address: {
+            ...prev.address,
+            lat,
+            lng,
+          },
+        }));
+
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+          const data = await res.json();
+          if (data && data.address) {
+            const street = data.address.road || data.address.suburb || data.display_name?.split(',')[0] || '';
+            const city = data.address.city || data.address.town || data.address.state_district || 'Bengaluru';
+            const state = data.address.state || 'Karnataka';
+            const pincode = data.address.postcode || '';
+
+            setNewShopForm((prev) => ({
+              ...prev,
+              address: {
+                street: street || prev.address?.street || '',
+                city: city || prev.address?.city || 'Bengaluru',
+                state: state || prev.address?.state || 'Karnataka',
+                pincode: pincode || prev.address?.pincode || '',
+                lat,
+                lng,
+              },
+            }));
+          }
+        } catch (err) {
+          // Keep captured lat/lng
+        } finally {
+          setIsDetectingLocation(false);
+        }
+      },
+      (err) => {
+        alert(`Location permission required: ${err.message}`);
+        setIsDetectingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   // Submit Add Shop
@@ -1027,6 +1094,88 @@ export const AdminShopsList = () => {
                   onChange={(e) => setNewShopForm({ ...newShopForm, category: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-2xl bg-[#f0f2fb] border border-slate-200 text-xs text-[#181829] focus:outline-none focus:border-[#6339f4]"
                 />
+              </div>
+            </div>
+
+            {/* Store Geographic Location & Address */}
+            <div className="p-4 rounded-2xl bg-orange-50/70 border border-orange-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-slate-900">
+                  <MapPin className="w-4 h-4 text-[#FF7622]" />
+                  <span className="font-bold text-xs">Store Geographic Location (GPS)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDetectCurrentLocation}
+                  disabled={isDetectingLocation}
+                  className="px-3 py-1.5 rounded-xl bg-[#FF7622] hover:bg-[#E56314] text-white text-[11px] font-bold transition-all flex items-center space-x-1.5 shadow-xs disabled:opacity-50"
+                >
+                  <Navigation className={`w-3.5 h-3.5 ${isDetectingLocation ? 'animate-spin' : ''}`} />
+                  <span>{isDetectingLocation ? 'Detecting GPS...' : 'Use Current Location'}</span>
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Street Address</label>
+                <input
+                  type="text"
+                  value={newShopForm.address?.street || ''}
+                  onChange={(e) =>
+                    setNewShopForm({
+                      ...newShopForm,
+                      address: { ...newShopForm.address, street: e.target.value },
+                    })
+                  }
+                  placeholder="e.g. Poultry Lane, Shivaji Nagar"
+                  className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-[#FF7622]"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={newShopForm.address?.city || 'Bengaluru'}
+                    onChange={(e) =>
+                      setNewShopForm({
+                        ...newShopForm,
+                        address: { ...newShopForm.address, city: e.target.value },
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newShopForm.address?.lat || 12.9716}
+                    onChange={(e) =>
+                      setNewShopForm({
+                        ...newShopForm,
+                        address: { ...newShopForm.address, lat: Number(e.target.value) },
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newShopForm.address?.lng || 77.5946}
+                    onChange={(e) =>
+                      setNewShopForm({
+                        ...newShopForm,
+                        address: { ...newShopForm.address, lng: Number(e.target.value) },
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 
