@@ -182,8 +182,9 @@ const AdminRouter = () => {
       case 'contact':
         return <ContactPage onNavigate={navigateTo} />;
       case 'profile':
+        return <UserProfilePage key="profile" initialTab="profile" onNavigate={navigateTo} />;
       case 'orders':
-        return <UserProfilePage onNavigate={navigateTo} />;
+        return <UserProfilePage key="orders" initialTab="orders" onNavigate={navigateTo} />;
       case 'home':
       case 'dashboard':
       default:

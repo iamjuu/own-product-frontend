@@ -35,6 +35,7 @@ import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import { getSocket, joinSocketRole } from '../../api/socket';
 import { playCustomerRiderAssignedChime } from '../../utils/soundAlert';
 import { LiveDeliveryTrackingModal } from '../tracking/LiveDeliveryTrackingModal';
+import ApiClient from '../../api/client';
 
 export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, children }) => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -49,6 +50,31 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
   // Real-time Swiggy Push Notification & Tracking Modal State
   const [riderPushNotification, setRiderPushNotification] = useState(null);
   const [activeTrackingOrder, setActiveTrackingOrder] = useState(null);
+  const [userOrders, setUserOrders] = useState([]);
+
+  // Fetch Customer Orders for Header Status
+  const fetchCustomerOrders = () => {
+    if (isAuthenticated && user) {
+      ApiClient.get('/user/orders')
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : (res.data?.orders || []);
+          setUserOrders(list);
+        })
+        .catch(() => {});
+    } else {
+      setUserOrders([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomerOrders();
+  }, [isAuthenticated, user]);
+
+  const activeOrders = userOrders.filter(
+    (o) => !['DELIVERED', 'CANCELLED', 'REJECTED'].includes(o.status)
+  );
+  const hasActiveOrders = activeOrders.length > 0;
+  const activeOrderCount = activeOrders.length;
 
   // Join Customer Socket Room & Listen for Delivery Partner Acceptance
   useEffect(() => {
@@ -89,10 +115,13 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
           Notification.requestPermission();
         }
       }
+      // Refresh customer orders count
+      fetchCustomerOrders();
     };
 
     const handleStatusUpdated = (order) => {
       console.log('⚡ [UserLayout Socket]: Order status updated', order);
+      fetchCustomerOrders();
       setActiveTrackingOrder((prev) => {
         if (prev && (prev._id === order._id || prev.id === order._id || prev.orderNumber === order.orderNumber)) {
           return { ...prev, ...order };
@@ -336,8 +365,43 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
               </nav>
             )}
 
-            {/* Right CTA Button & Quick Icons */}
-            <div className="flex items-center space-x-5">
+            {/* Right Quick Icons & Orders Button */}
+            <div className="flex items-center space-x-3.5">
+              {/* My Orders Button with Live Order Tracking Pill */}
+              <button 
+                onClick={() => {
+                  if (isAuthenticated) {
+                    onRouteChange?.('orders');
+                  } else {
+                    onRouteChange?.('login');
+                  }
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center space-x-2 border shadow-xs active:scale-95 ${
+                  hasActiveOrders
+                    ? 'bg-[#181C2E] hover:bg-[#252a42] text-white border-orange-500/50 ring-2 ring-orange-500/20'
+                    : currentRoute === 'orders'
+                    ? 'bg-[#FF7622] text-white border-[#FF7622]'
+                    : 'bg-white hover:bg-orange-50 text-slate-800 border-slate-200/90 hover:border-[#FF7622]/40'
+                }`}
+                title="View My Orders"
+              >
+                <div className="relative">
+                  <ShoppingBag className={`w-4 h-4 ${hasActiveOrders ? 'text-[#FF7622]' : ''}`} />
+                  {hasActiveOrders && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5 animate-ping" />
+                  )}
+                </div>
+                <span>{hasActiveOrders ? 'Active Order' : 'Orders'}</span>
+                {activeOrderCount > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-[#FF7622] text-white animate-pulse">
+                    {activeOrderCount} Live
+                  </span>
+                ) : userOrders.length > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                    {userOrders.length}
+                  </span>
+                ) : null}
+              </button>
 
 
               {!showSearchOverlay && (
@@ -526,8 +590,28 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
                 })}
               </nav>
 
-              {/* Action Button: Profile */}
+              {/* Action Button: My Orders & Profile */}
               <div className="pt-3 border-t border-slate-100 space-y-2">
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    if (isAuthenticated) {
+                      onRouteChange?.('orders');
+                    } else {
+                      onRouteChange?.('login');
+                    }
+                  }}
+                  className={`w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm flex items-center justify-center space-x-2 active:scale-95 transition-all ${
+                    hasActiveOrders
+                      ? 'bg-[#181C2E] text-white border border-orange-500/40'
+                      : 'bg-[#FF7622] hover:bg-[#E56314] text-white'
+                  }`}
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>
+                    {hasActiveOrders ? `Active Order (${activeOrderCount} Live)` : `My Orders (${userOrders.length})`}
+                  </span>
+                </button>
 
                 <div className="flex items-center gap-2">
                   <button
