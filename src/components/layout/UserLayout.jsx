@@ -45,8 +45,6 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showStoreModal, setShowStoreModal] = useState(false);
-  const [selectedStore, setSelectedStore] = useState('Indiranagar Express Hub');
   
   // Real-time Swiggy Push Notification & Tracking Modal State
   const [riderPushNotification, setRiderPushNotification] = useState(null);
@@ -112,13 +110,6 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
     };
   }, [user]);
 
-  // Quick stores list for SELECT STORE modal
-  const stores = [
-    { id: 1, name: 'Indiranagar Express Hub', distance: '1.2 km', eta: '12-15 mins', address: '100ft Road, HAL 2nd Stage' },
-    { id: 2, name: 'Koramangala Fresh Hub', distance: '3.4 km', eta: '18-20 mins', address: '4th Block, 80ft Road' },
-    { id: 3, name: 'Central Halal & Fresh Market', distance: '5.1 km', eta: '25 mins', address: 'MG Road, Halal Tower' }
-  ];
-
   // Search catalog items across the 5 core categories
   const searchableItems = [
     { id: 'prod-chk-1', name: 'Fresh Farm Chicken Breast', category: 'Chicken', price: '₹320', tag: 'Fresh 1kg' },
@@ -177,12 +168,9 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
           <div className="max-w-7xl mx-auto flex items-center justify-between">
             {/* Left: Address & Email */}
             <div className="flex items-center space-x-6">
-              <div 
-                onClick={() => setShowStoreModal(true)} 
-                className="flex items-center space-x-1.5 hover:text-[#FF7622] cursor-pointer transition-colors"
-              >
+              <div className="flex items-center space-x-1.5 text-slate-600">
                 <MapPin className="w-3.5 h-3.5 text-[#FF7622]" />
-                <span>Store: <strong>{selectedStore}</strong> (Change)</span>
+                <span>Express Delivery: <strong>15-20 Mins</strong></span>
               </div>
               <div className="flex items-center space-x-1.5 hover:text-[#FF7622] cursor-pointer transition-colors">
                 <Mail className="w-3.5 h-3.5 text-[#FF7622]" />
@@ -350,13 +338,7 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
 
             {/* Right CTA Button & Quick Icons */}
             <div className="flex items-center space-x-5">
-              <button 
-                onClick={() => setShowStoreModal(true)}
-                className="px-5 py-2.5 rounded-md bg-[#FF7622] hover:bg-[#E56314] text-white font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex items-center space-x-1.5"
-              >
-                <Store className="w-3.5 h-3.5" />
-                <span>SELECT STORE</span>
-              </button>
+
 
               {!showSearchOverlay && (
                 <button 
@@ -427,17 +409,14 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
             )}
           </button>
 
-          {/* Center: DELIVER TO + selectedStore ▾ */}
-          <div 
-            onClick={() => setShowStoreModal(true)}
-            className="flex flex-col items-center cursor-pointer group px-2"
-          >
+          {/* Center: Brand Delivery Badge */}
+          <div className="flex flex-col items-center px-2">
             <span className="text-[10px] font-black tracking-wider text-[#FF7622] uppercase">
-              DELIVER TO
+              DELIVERY IN
             </span>
-            <div className="flex items-center space-x-1 text-xs font-black text-[#181C2E] group-hover:text-[#FF7622] transition-colors max-w-[170px] truncate">
-              <span className="truncate">{selectedStore}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-[#181C2E] stroke-[2.5] shrink-0" />
+            <div className="flex items-center space-x-1 text-xs font-black text-[#181C2E]">
+              <Clock className="w-3 h-3 text-[#FF7622]" />
+              <span>15-20 Mins</span>
             </div>
           </div>
 
@@ -492,16 +471,9 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
                   </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    setShowStoreModal(true);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-orange-50 text-[#FF7622] text-[11px] font-black flex items-center space-x-1"
-                >
-                  <Store className="w-3 h-3" />
-                  <span>Change Store</span>
-                </button>
+                <span className="px-2.5 py-1 rounded-lg bg-orange-50 text-[#FF7622] text-[10px] font-black">
+                  Instant Hub
+                </span>
               </div>
 
               {/* Main Nav Links (Matching desktop navbar items) */}
@@ -554,18 +526,8 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
                 })}
               </nav>
 
-              {/* Action Buttons: SELECT STORE & Profile */}
+              {/* Action Button: Profile */}
               <div className="pt-3 border-t border-slate-100 space-y-2">
-                <button
-                  onClick={() => {
-                    setShowMobileMenu(false);
-                    setShowStoreModal(true);
-                  }}
-                  className="w-full py-3 rounded-xl bg-[#FF7622] hover:bg-[#E56314] text-white font-black text-xs uppercase tracking-wider shadow-sm flex items-center justify-center space-x-2 active:scale-95 transition-all"
-                >
-                  <Store className="w-4 h-4" />
-                  <span>SELECT STORE ({selectedStore})</span>
-                </button>
 
                 <div className="flex items-center gap-2">
                   <button
@@ -679,64 +641,7 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
 
 
 
-      {/* =============================================================
-          MODAL: SELECT STORE (Delivery Hub Picker)
-         ============================================================= */}
-      {showStoreModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center space-x-2">
-                <Store className="w-5 h-5 text-[#FF7622]" />
-                <h3 className="text-base font-black text-[#181C2E]">Select Delivery Store</h3>
-              </div>
-              <button
-                onClick={() => setShowStoreModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <p className="text-xs text-slate-500">
-              Select your nearest Local Run fulfillment hub to enjoy 15-minute ultra-fast doorstep delivery:
-            </p>
-
-            <div className="space-y-3">
-              {stores.map((store) => (
-                <div
-                  key={store.id}
-                  onClick={() => {
-                    setSelectedStore(store.name);
-                    setShowStoreModal(false);
-                    setShowNotificationToast(true);
-                    setTimeout(() => setShowNotificationToast(false), 2500);
-                  }}
-                  className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                    selectedStore === store.name
-                      ? 'border-[#FF7622] bg-[#FFF4EC]'
-                      : 'border-slate-200 hover:border-[#FF7622]/40 bg-white'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <p className="text-xs font-bold text-[#181C2E]">{store.name}</p>
-                      {selectedStore === store.name && (
-                        <Check className="w-4 h-4 text-[#FF7622]" />
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400">{store.address}</p>
-                    <div className="flex items-center space-x-3 text-[10px] font-bold text-[#FF7622] pt-0.5">
-                      <span>📍 {store.distance}</span>
-                      <span>⚡ {store.eta}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Quick Action / Deals Modal */}
       {showQuickAddModal && (
