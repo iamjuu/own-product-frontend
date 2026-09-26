@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShoppingBag, 
   MapPin, 
@@ -23,12 +23,18 @@ import {
   Info,
   Newspaper,
   ShieldCheck,
-  Tag
+  Tag,
+  Bike,
+  Navigation,
+  Radio
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { CartDrawer } from '../cart/CartDrawer';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
+import { getSocket, joinSocketRole } from '../../api/socket';
+import { playCustomerRiderAssignedChime } from '../../utils/soundAlert';
+import { LiveDeliveryTrackingModal } from '../tracking/LiveDeliveryTrackingModal';
 
 export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, children }) => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -41,6 +47,70 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
   const [searchQuery, setSearchQuery] = useState('');
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [selectedStore, setSelectedStore] = useState('Indiranagar Express Hub');
+  
+  // Real-time Swiggy Push Notification & Tracking Modal State
+  const [riderPushNotification, setRiderPushNotification] = useState(null);
+  const [activeTrackingOrder, setActiveTrackingOrder] = useState(null);
+
+  // Join Customer Socket Room & Listen for Delivery Partner Acceptance
+  useEffect(() => {
+    const socket = getSocket();
+    joinSocketRole({ role: 'CUSTOMER', userId: user?._id });
+
+    const handleRiderAssigned = (order) => {
+      console.log('🛵 [UserLayout Socket]: Rider assigned to order', order);
+      // If user is authenticated, ensure it matches their order
+      if (user?._id && order.customerId) {
+        const orderCustId = order.customerId?._id ? String(order.customerId._id) : String(order.customerId);
+        if (orderCustId !== String(user._id)) {
+          return;
+        }
+      }
+
+      // Play pleasant customer push chime
+      playCustomerRiderAssignedChime();
+
+      // Show top push notification
+      setRiderPushNotification({
+        order,
+        receivedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+
+      // Trigger Web Push Notification if browser allows
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        if (Notification.permission === 'granted') {
+          try {
+            new Notification(`🛵 Rider Assigned! Order #${order.orderNumber}`, {
+              body: `${order.deliveryPartnerName || 'Your rider'} is on the way to ${order.shopName || 'the store'}.`,
+              icon: '/favicon.ico',
+            });
+          } catch (e) {
+            console.warn('Native notification error:', e);
+          }
+        } else if (Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      }
+    };
+
+    const handleStatusUpdated = (order) => {
+      console.log('⚡ [UserLayout Socket]: Order status updated', order);
+      setActiveTrackingOrder((prev) => {
+        if (prev && (prev._id === order._id || prev.id === order._id || prev.orderNumber === order.orderNumber)) {
+          return { ...prev, ...order };
+        }
+        return prev;
+      });
+    };
+
+    socket.on('order:rider_assigned', handleRiderAssigned);
+    socket.on('order:status_updated', handleStatusUpdated);
+
+    return () => {
+      socket.off('order:rider_assigned', handleRiderAssigned);
+      socket.off('order:status_updated', handleStatusUpdated);
+    };
+  }, [user]);
 
   // Quick stores list for SELECT STORE modal
   const stores = [
@@ -754,6 +824,72 @@ export const UserLayout = ({ currentRoute = 'home', onRouteChange, onRefresh, ch
           <Sparkles className="w-4 h-4 text-[#FF7622]" />
           <span>⚡ Selection updated successfully!</span>
         </div>
+      )}
+
+      {/* 🚀 REAL-TIME SWIGGY PUSH NOTIFICATION TOAST: RIDER ASSIGNED */}
+      {riderPushNotification && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-[#181C2E] text-white p-4 rounded-3xl shadow-2xl border border-orange-500/40 backdrop-blur-xl flex items-center justify-between gap-3">
+            <div className="flex items-center space-x-3.5 min-w-0">
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#FF7622] to-amber-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+                  <Bike className="w-6 h-6 animate-bounce" />
+                </div>
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#181C2E] animate-ping" />
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#181C2E]" />
+              </div>
+
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center space-x-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#FF7622] bg-[#FF7622]/15 px-2 py-0.5 rounded-md">
+                    Rider Assigned
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {riderPushNotification.receivedAt}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white truncate">
+                  {riderPushNotification.order.deliveryPartnerName || 'Rider'} is on the way!
+                </h4>
+                <p className="text-xs text-slate-300 truncate">
+                  Order #{riderPushNotification.order.orderNumber} • {riderPushNotification.order.shopName || 'Store'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                onClick={() => {
+                  setActiveTrackingOrder(riderPushNotification.order);
+                  setRiderPushNotification(null);
+                }}
+                className="px-3.5 py-2 rounded-2xl bg-[#FF7622] hover:bg-[#E56314] text-white text-xs font-black flex items-center space-x-1.5 shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all"
+              >
+                <Navigation className="w-3.5 h-3.5 fill-current" />
+                <span>Track Live</span>
+              </button>
+              <button
+                onClick={() => setRiderPushNotification(null)}
+                className="p-2 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SWIGGY LIVE DELIVERY TRACKING MODAL */}
+      {activeTrackingOrder && (
+        <LiveDeliveryTrackingModal
+          isOpen={!!activeTrackingOrder}
+          onClose={() => setActiveTrackingOrder(null)}
+          order={activeTrackingOrder}
+          onStatusUpdated={(newStatus) => {
+            setActiveTrackingOrder((prev) => prev ? { ...prev, status: newStatus } : null);
+          }}
+        />
       )}
     </div>
   );

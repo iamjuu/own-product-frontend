@@ -12,11 +12,19 @@ import {
   User as UserIcon,
   Sparkles
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { joinSocketRole } from '../../api/socket';
 
 export const DeliveryBoyLayout = ({ currentRoute, onRouteChange, onRefresh, children }) => {
   const { user, logout } = useAuth();
   const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    if (user?._id || user?.id) {
+      joinSocketRole({ role: 'DELIVERY_PARTNER', userId: user._id || user.id });
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FD] text-[#181C2E] flex flex-col font-sans selection:bg-[#FF7622]/20">
@@ -60,7 +68,7 @@ export const DeliveryBoyLayout = ({ currentRoute, onRouteChange, onRefresh, chil
 
             {/* Rider Info */}
             <div className="hidden md:flex items-center space-x-2 border-l border-slate-200 pl-3">
-              <div className="w-8 h-8 rounded-full bg-[#181C2E] text-white flex items-center justify-center font-bold text-xs">
+              <div className="w-8 h-8 rounded-full bg-[#181C2E] text-white flex items-center justify-center font-bold text-xs shadow-xs">
                 {user?.name?.[0] || 'R'}
               </div>
               <div className="text-left">
@@ -68,7 +76,7 @@ export const DeliveryBoyLayout = ({ currentRoute, onRouteChange, onRefresh, chil
                   {user?.name || 'Delivery Partner'}
                 </p>
                 <p className="text-[10px] text-[#646982] mt-0.5">
-                  ID: <span className="font-mono font-semibold">RID-4091</span>
+                  ID: <span className="font-mono font-semibold">RID-{String(user?._id || user?.id || '4091').slice(-4).toUpperCase()}</span>
                 </p>
               </div>
             </div>

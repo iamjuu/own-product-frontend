@@ -16,17 +16,27 @@ import {
   ArrowRight,
   RefreshCw,
   PackageCheck,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 import ApiClient from '../../../api/client';
-import { playOrderChime } from '../../../utils/soundAlert';
+import {
+  playOrderChime,
+  startRestaurantKitchenBeep,
+  stopRestaurantKitchenBeep
+} from '../../../utils/soundAlert';
+import { getSocket, joinSocketRole } from '../../../api/socket';
+import { useAuth } from '../../../context/AuthContext';
 
 export const ShopOwnerOrders = () => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [activeTab, setActiveTab] = useState('incoming'); // 'incoming' | 'preparing' | 'ready' | 'completed'
   const [isLoading, setIsLoading] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [acceptingOrder, setAcceptingOrder] = useState(null);
+  const [cookingTimeMinutes, setCookingTimeMinutes] = useState(20);
   const knownOrderIdsRef = useRef(new Set());
   const initialLoadRef = useRef(true);
 
@@ -37,21 +47,8 @@ export const ShopOwnerOrders = () => {
         const orderList = res.data.orders || [];
         setOrders(orderList);
 
-        // Detect newly arrived incoming orders to trigger acoustic kitchen chime
-        const incomingOrders = orderList.filter((o) => o.status === 'PLACED' || o.status === 'PENDING');
-        let hasNewOrder = false;
-
-        for (const order of incomingOrders) {
-          if (!knownOrderIdsRef.current.has(order._id)) {
-            knownOrderIdsRef.current.add(order._id);
-            if (!initialLoadRef.current) {
-              hasNewOrder = true;
-            }
-          }
-        }
-
-        if (hasNewOrder && isAudioEnabled && !silenceChime) {
-          playOrderChime();
+        for (const order of orderList) {
+          knownOrderIdsRef.current.add(order._id);
         }
 
         initialLoadRef.current = false;
@@ -63,22 +60,105 @@ export const ShopOwnerOrders = () => {
     }
   };
 
+  // 1. Initial Load & Background Polling
   useEffect(() => {
     fetchOrders(true);
-    // Polling interval: live kitchen telemetry every 3.5 seconds
     const interval = setInterval(() => {
-      fetchOrders(false);
-    }, 3500);
+      fetchOrders(true);
+    }, 4500);
 
     return () => clearInterval(interval);
-  }, [isAudioEnabled]);
+  }, []);
 
-  const handleUpdateStatus = async (orderId, newStatus) => {
+  // 2. Real-Time Socket Connection for Kitchen Incoming Orders
+  useEffect(() => {
+    const socket = getSocket();
+    joinSocketRole({ role: 'SHOP_OWNER', userId: user?._id || user?.id, shopId: user?.shopId });
+
+    const handleNewIncomingOrder = (newOrder) => {
+      if (!newOrder || !newOrder._id) return;
+
+      setOrders((prev) => {
+        if (prev.some((o) => o._id === newOrder._id)) return prev;
+        return [newOrder, ...prev];
+      });
+
+      if (isAudioEnabled) {
+        playOrderChime();
+      }
+
+      // Automatically focus on incoming orders tab
+      setActiveTab('incoming');
+    };
+
+    socket.on('order:new_incoming', handleNewIncomingOrder);
+
+    return () => {
+      socket.off('order:new_incoming', handleNewIncomingOrder);
+      stopRestaurantKitchenBeep();
+    };
+  }, [user, isAudioEnabled]);
+
+  // 3. CONTINUOUS KITCHEN BEEP ALERT FOR UNACCEPTED ORDERS
+  // Rings every 3.2s until restaurant owner clicks "Accept Order & Set Cook Time"
+  const incomingOrders = orders.filter((o) => ['PLACED', 'PENDING'].includes(o.status));
+
+  useEffect(() => {
+    if (incomingOrders.length > 0 && isAudioEnabled) {
+      startRestaurantKitchenBeep();
+    } else {
+      stopRestaurantKitchenBeep();
+    }
+
+    return () => {
+      stopRestaurantKitchenBeep();
+    };
+  }, [incomingOrders.length, isAudioEnabled]);
+
+  // Accept Order With Cooking Time -> Submits & broadcasts to delivery boys
+  const handleConfirmAcceptOrder = async () => {
+    if (!acceptingOrder) return;
+    setProcessingId(acceptingOrder._id);
+    try {
+      const res = await ApiClient.patch(`/shop-owner/orders/${acceptingOrder._id}/status`, {
+        status: 'PREPARING',
+        cookingTimeMinutes: Number(cookingTimeMinutes) || 20,
+      });
+      if (res.success) {
+        setAcceptingOrder(null);
+        await fetchOrders(true);
+        setActiveTab('preparing');
+
+        const remaining = orders.filter(
+          (o) => o._id !== acceptingOrder._id && ['PLACED', 'PENDING'].includes(o.status)
+        );
+        if (remaining.length === 0) {
+          stopRestaurantKitchenBeep();
+        }
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to accept order');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUpdateStatus = async (orderId, newStatus, extraData = {}) => {
     setProcessingId(orderId);
     try {
-      const res = await ApiClient.patch(`/shop-owner/orders/${orderId}/status`, { status: newStatus });
+      const res = await ApiClient.patch(`/shop-owner/orders/${orderId}/status`, {
+        status: newStatus,
+        ...extraData,
+      });
       if (res.success) {
         await fetchOrders(true);
+        // If no more incoming orders, ensure beep stops
+        const remaining = orders.filter(
+          (o) => o._id !== orderId && ['PLACED', 'PENDING'].includes(o.status)
+        );
+        if (remaining.length === 0) {
+          stopRestaurantKitchenBeep();
+        }
       }
     } catch (err) {
       alert(err.message || 'Failed to update order status');
@@ -88,7 +168,6 @@ export const ShopOwnerOrders = () => {
   };
 
   // Group orders into Kitchen pipeline categories
-  const incomingOrders = orders.filter((o) => ['PLACED', 'PENDING'].includes(o.status));
   const preparingOrders = orders.filter((o) => ['ACCEPTED', 'CONFIRMED', 'PREPARING'].includes(o.status));
   const readyOrders = orders.filter((o) => ['READY_FOR_PICKUP', 'DELIVERY_PARTNER_ASSIGNED'].includes(o.status));
   const completedOrders = orders.filter((o) => ['PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(o.status));
@@ -355,40 +434,32 @@ export const ShopOwnerOrders = () => {
                   {order.status === 'PLACED' && (
                     <button
                       disabled={isProcessing}
-                      onClick={() => handleUpdateStatus(order._id, 'ACCEPTED')}
+                      onClick={() => {
+                        setAcceptingOrder(order);
+                        setCookingTimeMinutes(20);
+                      }}
                       className="w-full py-3 rounded-2xl bg-[#FF7622] hover:bg-[#E56314] text-white font-bold text-xs shadow-md shadow-orange-500/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
                     >
-                      <Check className="w-4 h-4" />
-                      <span>Accept Order Ticket</span>
+                      <Clock className="w-4 h-4" />
+                      <span>Accept Order & Set Cook Time</span>
                     </button>
                   )}
 
-                  {order.status === 'ACCEPTED' && (
-                    <button
-                      disabled={isProcessing}
-                      onClick={() => handleUpdateStatus(order._id, 'PREPARING')}
-                      className="w-full py-3 rounded-2xl bg-[#6339f4] hover:bg-[#5327ec] text-white font-bold text-xs shadow-md shadow-purple-500/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-                    >
-                      <Flame className="w-4 h-4" />
-                      <span>Start Food Cooking / Prep (In Progress)</span>
-                    </button>
-                  )}
-
-                  {order.status === 'PREPARING' && (
-                    <button
-                      disabled={isProcessing}
-                      onClick={() => handleUpdateStatus(order._id, 'READY_FOR_PICKUP')}
-                      className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-md shadow-amber-500/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-                    >
-                      <PackageCheck className="w-4 h-4" />
-                      <span>Complete Food & Mark Ready for Pickup</span>
-                    </button>
-                  )}
-
-                  {order.status === 'READY_FOR_PICKUP' && (
-                    <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-center text-xs font-bold flex items-center justify-center space-x-1.5">
-                      <Clock className="w-3.5 h-3.5 animate-spin" />
-                      <span>Broadcasting to Delivery Boys...</span>
+                  {['ACCEPTED', 'PREPARING', 'READY_FOR_PICKUP'].includes(order.status) && (
+                    <div className="p-3 rounded-2xl bg-orange-50/80 border border-orange-200/80 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-bold text-orange-900">
+                        <span className="flex items-center space-x-1.5">
+                          <Flame className="w-3.5 h-3.5 text-[#FF7622]" />
+                          <span>Food Cooking in Kitchen</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-orange-200/60 text-[#FF7622] font-black text-[11px]">
+                          ~{order.cookingTimeMinutes || 20}m Prep Time
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-[#FF7622] animate-spin" />
+                        <span>Riders alerted on radar • Waiting for delivery boy pickup</span>
+                      </p>
                     </div>
                   )}
 
@@ -409,6 +480,106 @@ export const ShopOwnerOrders = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 4. MODAL: Set Cooking & Prep Time Before Alerting Delivery Boys */}
+      {acceptingOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-50 text-[#FF7622] flex items-center justify-center font-bold shadow-inner">
+                  <ChefHat className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Set Cooking & Preparation Time
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Order #{acceptingOrder.orderNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAcceptingOrder(null)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <label className="text-xs font-bold text-slate-700 block">
+                How many minutes will the kitchen take to prepare this food?
+              </label>
+
+              {/* Quick minute preset buttons */}
+              <div className="grid grid-cols-4 gap-2">
+                {[15, 20, 30, 45].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => setCookingTimeMinutes(mins)}
+                    className={`py-2 rounded-xl text-xs font-black transition-all border ${
+                      cookingTimeMinutes === mins
+                        ? 'bg-[#FF7622] text-white border-[#FF7622] shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {mins} mins
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom Minutes Input */}
+              <div className="pt-1">
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="5"
+                    max="180"
+                    value={cookingTimeMinutes}
+                    onChange={(e) => setCookingTimeMinutes(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-base font-black text-slate-900 focus:outline-none focus:border-[#FF7622] focus:bg-white text-center font-mono"
+                    placeholder="Enter minutes"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    minutes
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-orange-50/80 border border-orange-200/60 text-[11px] text-slate-700 leading-relaxed space-y-1">
+                <p className="font-bold text-[#FF7622] flex items-center space-x-1.5">
+                  <Bike className="w-3.5 h-3.5" />
+                  <span>Immediate Fleet Alert</span>
+                </p>
+                <p>
+                  As soon as you confirm this time, delivery boys in the area will receive the alert and their siren alarm will ring continuously until they <strong>Accept</strong> or <strong>Reject</strong>.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAcceptingOrder(null)}
+                className="py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={processingId === acceptingOrder._id}
+                onClick={handleConfirmAcceptOrder}
+                className="py-3 rounded-2xl bg-[#FF7622] hover:bg-[#E56314] text-white font-black text-xs shadow-md shadow-orange-500/20 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4 stroke-[2.5]" />
+                <span>Confirm & Alert Riders</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

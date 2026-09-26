@@ -17,6 +17,7 @@ import {
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
+import { USE_RAZORPAY_GATEWAY } from '../../config/paymentConfig';
 
 export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
   const { cart, totalItemCount, updateQuantity, removeFromCart, clearCart, createRazorpayOrder, checkout, loading } = useCart();
@@ -24,7 +25,8 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [selectedAddress, setSelectedAddress] = useState('Indiranagar 100ft Road, HAL 2nd Stage, Bangalore');
-  const [paymentMethod, setPaymentMethod] = useState('RAZORPAY');
+  const [addressError, setAddressError] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(USE_RAZORPAY_GATEWAY ? 'RAZORPAY' : 'COD');
 
   if (!isOpen) return null;
 
@@ -35,7 +37,35 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
       return;
     }
 
-    // 1. If RAZORPAY is selected, create backend order and trigger Razorpay Gateway
+    // 0. Verify Delivery Address
+    if (!selectedAddress || !selectedAddress.trim()) {
+      setAddressError('Please enter a verified delivery address before confirming.');
+      return;
+    }
+
+    // 1. If USE_RAZORPAY_GATEWAY is false, no online payment is required:
+    // Directly confirm order with verified address
+    if (!USE_RAZORPAY_GATEWAY) {
+      try {
+        setIsCheckingOut(true);
+        const order = await checkout({
+          paymentMethod: 'COD',
+          deliveryAddress: {
+            street: selectedAddress.trim(),
+            city: 'Bengaluru',
+          },
+          notes: 'Direct verified address checkout (USE_RAZORPAY_GATEWAY = false)',
+        });
+        setOrderSuccess(order);
+      } catch (err) {
+        alert(err.message || 'Failed to confirm order. Please try again.');
+      } finally {
+        setIsCheckingOut(false);
+      }
+      return;
+    }
+
+    // 2. If USE_RAZORPAY_GATEWAY is true and RAZORPAY is selected, trigger Razorpay Gateway
     if (paymentMethod === 'RAZORPAY' && window.Razorpay) {
       try {
         setIsCheckingOut(true);
@@ -64,7 +94,7 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
               const order = await checkout({
                 paymentMethod: 'RAZORPAY',
                 deliveryAddress: {
-                  street: selectedAddress,
+                  street: selectedAddress.trim(),
                   city: 'Bengaluru',
                 },
                 razorpayOrderId: response.razorpay_order_id || gatewayOrder.razorpayOrderId,
@@ -104,7 +134,7 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
       const order = await checkout({
         paymentMethod,
         deliveryAddress: {
-          street: selectedAddress,
+          street: selectedAddress.trim(),
           city: 'Bengaluru',
         },
       });
@@ -163,18 +193,30 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
                   Order #{orderSuccess.orderNumber}
                 </h2>
                 <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                  Your order is confirmed! Delivery partner Rahul Kumar will arrive in ~15 mins.
+                  Your order is confirmed! A delivery partner will be assigned for prompt delivery.
                 </p>
               </div>
 
-              <div className="bg-[#FFF4EC] border border-[#FF7622]/30 rounded-2xl p-4 w-full text-left flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 block uppercase">DOORSTEP OTP</span>
-                  <span className="text-xl font-black text-[#FF7622] font-mono tracking-widest">{orderSuccess.deliveryOtp}</span>
+              <div className="bg-[#FFF4EC] border border-[#FF7622]/30 rounded-2xl p-4 w-full text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">DOORSTEP OTP</span>
+                    <span className="text-xl font-black text-[#FF7622] font-mono tracking-widest">{orderSuccess.deliveryOtp}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-500 block uppercase">TOTAL AMOUNT</span>
+                    <span className="text-base font-black text-[#181C2E]">₹{orderSuccess.totalAmount}</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-500 block uppercase">TOTAL AMOUNT</span>
-                  <span className="text-base font-black text-[#181C2E]">₹{orderSuccess.totalAmount}</span>
+
+                <div className="pt-2 border-t border-[#FF7622]/20 flex items-start space-x-2 text-xs">
+                  <MapPin className="w-3.5 h-3.5 text-[#FF7622] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[#181C2E] block text-[11px]">Confirmed Delivery Destination:</span>
+                    <span className="text-[11px] text-slate-600 font-medium">
+                      {orderSuccess.deliveryAddress?.street || selectedAddress}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -282,49 +324,106 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
 
                     {/* Delivery & Address selector */}
                     <div className="bg-[#FAFBFD] p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                      <div className="flex items-center space-x-2 text-xs font-bold text-[#181C2E]">
-                        <MapPin className="w-4 h-4 text-[#FF7622]" />
-                        <span>Deliver To</span>
-                      </div>
-                      <input
-                        type="text"
-                        value={selectedAddress}
-                        onChange={(e) => setSelectedAddress(e.target.value)}
-                        className="w-full text-xs bg-white p-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#FF7622] font-medium"
-                      />
-
-                      {/* Payment Method Selector */}
-                      <div className="pt-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
-                          Payment Mode
+                      <div className="flex items-center justify-between text-xs font-bold text-[#181C2E]">
+                        <div className="flex items-center space-x-2">
+                          <MapPin className="w-4 h-4 text-[#FF7622]" />
+                          <span>Delivery Address</span>
+                        </div>
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Verified Address</span>
                         </span>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {[
-                            { key: 'RAZORPAY', label: '💳 Razorpay', badge: 'Fast' },
-                            { key: 'UPI', label: '⚡ UPI' },
-                            { key: 'COD', label: '💵 COD' },
-                            { key: 'WALLET', label: '👛 Wallet' },
-                          ].map((method) => (
-                            <button
-                              key={method.key}
-                              type="button"
-                              onClick={() => setPaymentMethod(method.key)}
-                              className={`py-2 px-1 rounded-xl text-[11px] font-black border transition-all flex flex-col items-center justify-center ${
-                                paymentMethod === method.key
-                                  ? 'border-[#FF7622] bg-[#FFF4EC] text-[#FF7622] shadow-2xs'
-                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                              }`}
-                            >
-                              <span>{method.label}</span>
-                              {method.badge && (
-                                <span className="text-[8px] font-bold text-[#FF7622] uppercase tracking-tighter mt-0.5">
-                                  {method.badge}
-                                </span>
-                              )}
-                            </button>
-                          ))}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <textarea
+                          rows={2}
+                          value={selectedAddress}
+                          onChange={(e) => {
+                            setSelectedAddress(e.target.value);
+                            if (addressError) setAddressError('');
+                          }}
+                          placeholder="Enter complete delivery street address..."
+                          className={`w-full text-xs bg-white p-2.5 rounded-xl border font-medium resize-none transition-all ${
+                            addressError
+                              ? 'border-rose-400 focus:border-rose-500 ring-2 ring-rose-100'
+                              : 'border-slate-200 focus:outline-none focus:border-[#FF7622]'
+                          }`}
+                        />
+                        {addressError && (
+                          <p className="text-[11px] text-rose-500 font-semibold">{addressError}</p>
+                        )}
+                        <div className="flex items-center space-x-2 text-[10px]">
+                          <span className="text-slate-400 font-medium">Quick presets:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAddress('Indiranagar 100ft Road, HAL 2nd Stage, Bangalore');
+                              setAddressError('');
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:border-[#FF7622] hover:text-[#FF7622] text-slate-600 font-bold transition-colors"
+                          >
+                            🏠 Home
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAddress('Prestige Tech Park, Outer Ring Road, Bangalore');
+                              setAddressError('');
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:border-[#FF7622] hover:text-[#FF7622] text-slate-600 font-bold transition-colors"
+                          >
+                            🏢 Work
+                          </button>
                         </div>
                       </div>
+
+                      {/* Payment Mode Selector - ONLY SHOWN IF USE_RAZORPAY_GATEWAY IS TRUE */}
+                      {USE_RAZORPAY_GATEWAY ? (
+                        <div className="pt-2 border-t border-slate-200/60">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1.5">
+                            Payment Mode
+                          </span>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {[
+                              { key: 'RAZORPAY', label: '💳 Razorpay', badge: 'Fast' },
+                              { key: 'UPI', label: '⚡ UPI' },
+                              { key: 'COD', label: '💵 COD' },
+                              { key: 'WALLET', label: '👛 Wallet' },
+                            ].map((method) => (
+                              <button
+                                key={method.key}
+                                type="button"
+                                onClick={() => setPaymentMethod(method.key)}
+                                className={`py-2 px-1 rounded-xl text-[11px] font-black border transition-all flex flex-col items-center justify-center ${
+                                  paymentMethod === method.key
+                                    ? 'border-[#FF7622] bg-[#FFF4EC] text-[#FF7622] shadow-2xs'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                                }`}
+                              >
+                                <span>{method.label}</span>
+                                {method.badge && (
+                                  <span className="text-[8px] font-bold text-[#FF7622] uppercase tracking-tighter mt-0.5">
+                                    {method.badge}
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-slate-200/60">
+                          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-start space-x-2.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div className="text-xs text-emerald-950">
+                              <p className="font-bold">Address Verified • No Online Payment Required</p>
+                              <p className="text-[11px] text-emerald-700 mt-0.5">
+                                Order will be confirmed directly upon address verification. Pay at doorstep upon delivery.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -397,10 +496,15 @@ export const CartDrawer = ({ isOpen, onClose, onNavigate }) => {
                       size="lg"
                       disabled={isCheckingOut}
                       onClick={handleCheckout}
-                      className="w-full flex items-center justify-center space-x-2"
+                      className="w-full flex items-center justify-center space-x-2 bg-[#FF7622] hover:bg-[#E56314]"
                     >
                       {isCheckingOut ? (
-                        <span>Processing Order...</span>
+                        <span>Confirming Order...</span>
+                      ) : !USE_RAZORPAY_GATEWAY ? (
+                        <>
+                          <ShieldCheck className="w-4 h-4 mr-1.5" />
+                          <span>CONFIRM ORDER (VERIFIED ADDRESS) • ₹{cart.totalAmount.toFixed(2)}</span>
+                        </>
                       ) : (
                         <>
                           <span>PLACE ORDER NOW • ₹{cart.totalAmount.toFixed(2)}</span>

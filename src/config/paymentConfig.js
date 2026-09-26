@@ -11,4 +11,4 @@
  *            (No payment gateway popup. Order is created directly as offline / Cash on Delivery)
  * ============================================================================
  */
-export const USE_RAZORPAY_GATEWAY = true;
+export const USE_RAZORPAY_GATEWAY = false;

@@ -140,14 +140,26 @@ export const ShopOwnerDashboard = ({ onNavigate }) => {
               </span>
             </div>
 
-            <div className="p-8 text-center rounded-2xl bg-[#f8f9fe] border border-dashed border-slate-200 space-y-3">
+            <div className="p-8 text-center rounded-2xl bg-[#f8f9fe] border border-dashed border-slate-200 space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-[#6339f4] mx-auto">
                 <Utensils className="w-6 h-6" />
               </div>
-              <h3 className="text-xs font-bold text-[#181829]">Kitchen Terminal Ready</h3>
-              <p className="text-xs text-[#8a87a6] max-w-sm mx-auto">
-                Customer orders placed for your restaurant will appear here automatically with kitchen tickets, item modifiers, and delivery rider assignments.
-              </p>
+              <div>
+                <h3 className="text-sm font-bold text-[#181829]">
+                  {data?.activeOrders > 0 ? `${data.activeOrders} Active Kitchen Orders` : 'Kitchen Terminal Ready'}
+                </h3>
+                <p className="text-xs text-[#8a87a6] max-w-sm mx-auto mt-1">
+                  Customer orders placed for your restaurant appear live in the Kitchen & Orders console with instant beep alerts, cook time selection, and rider assignment.
+                </p>
+              </div>
+
+              <button
+                onClick={() => onNavigate && onNavigate('orders')}
+                className="px-5 py-2.5 rounded-xl bg-[#6339f4] hover:bg-[#5229db] text-white text-xs font-black shadow-md shadow-indigo-500/20 transition-all inline-flex items-center space-x-2"
+              >
+                <ChefHat className="w-4 h-4" />
+                <span>Open Kitchen & Orders Console</span>
+              </button>
             </div>
           </div>
         </div>

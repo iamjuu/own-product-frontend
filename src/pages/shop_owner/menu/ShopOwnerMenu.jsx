@@ -552,6 +552,30 @@ export const ShopOwnerMenu = () => {
   const inStockCount = items.filter((i) => i.inStock).length;
   const outOfStockCount = totalCount - inStockCount;
 
+  // Filtered menu items
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (statusFilter === 'IN_STOCK' && !item.inStock) return false;
+      if (statusFilter === 'OUT_OF_STOCK' && item.inStock) return false;
+
+      if (categoryFilter !== 'ALL') {
+        const itemCatId = (item.categoryId?._id || item.categoryId || item.category?._id || item.category || '').toString();
+        if (itemCatId !== categoryFilter.toString()) return false;
+      }
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const nameMatch = item.name?.toLowerCase().includes(query);
+        const descMatch = item.description?.toLowerCase().includes(query);
+        const catMatch = item.categoryName?.toLowerCase().includes(query);
+        const unitMatch = item.unit?.toLowerCase().includes(query);
+        if (!nameMatch && !descMatch && !catMatch && !unitMatch) return false;
+      }
+
+      return true;
+    });
+  }, [items, statusFilter, categoryFilter, searchQuery]);
+
   return (
     <div className="space-y-6 pb-12">
       {/* Top Banner Card */}
